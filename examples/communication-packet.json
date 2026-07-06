@@ -7,32 +7,38 @@
     {
       "name": "messageId",
       "type": "uint16",
+      "offset": 0,
       "value": "0x000F"
     },
     {
       "name": "count",
       "type": "uint16",
+      "offset": 2,
       "value": 99
     },
     {
       "name": "reserved",
       "type": "bytes",
+      "offset": 4,
       "length": 4,
       "fill": "00"
     },
     {
       "name": "ipAddress",
       "type": "ipv4",
+      "offset": 8,
       "value": "192.168.0.10"
     },
     {
       "name": "port",
       "type": "uint16",
+      "offset": 12,
       "value": 36300
     },
     {
       "name": "callSign",
       "type": "string",
+      "offset": 14,
       "length": 20,
       "encoding": "shift_jis",
       "padding": "zero",

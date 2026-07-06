@@ -12,16 +12,17 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import sampleTemplate from "../examples/communication-packet.json";
 import { aiPrompt } from "./aiPrompt";
-import { buildBinary, formatHex, toHexRows, toOffset, type BinaryTemplate, type FieldDefinition } from "./core";
+import { buildBinary, formatHex, toHexRows, toOffset, type FieldDefinition } from "./core";
 import { detectInitialLocale, saveLocale, translate, type Locale } from "./i18n";
 import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./theme";
+import { appVersion } from "./version";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 
 const issueKeyPrefix = "issue.";
 
 export function App() {
-  const [template, setTemplate] = useState<BinaryTemplate>(sampleTemplate as BinaryTemplate);
+  const [templateInput, setTemplateInput] = useState<unknown>(sampleTemplate);
   const [selectedFieldIndex, setSelectedFieldIndex] = useState(0);
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonText, setJsonText] = useState(() => JSON.stringify(sampleTemplate, null, 2));
@@ -43,8 +44,8 @@ export function App() {
   }, [locale]);
 
   useEffect(() => {
-    setJsonText(JSON.stringify(template, null, 2));
-  }, [template]);
+    setJsonText(JSON.stringify(templateInput, null, 2));
+  }, [templateInput]);
 
   useEffect(() => {
     if (!toast) {
@@ -54,7 +55,16 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const result = useMemo(() => buildBinary(template), [template]);
+  useEffect(() => {
+    const onUpdateAvailable = () => {
+      showToast("info", t("toast.updateAvailable"));
+    };
+    window.addEventListener("spec-to-bin:update-available", onUpdateAvailable);
+    return () => window.removeEventListener("spec-to-bin:update-available", onUpdateAvailable);
+  }, [locale]);
+
+  const result = useMemo(() => buildBinary(templateInput), [templateInput]);
+  const template = result.template;
   const fieldIssues = useMemo(() => {
     const map = new Map<number, typeof result.issues>();
     for (const issue of result.issues) {
@@ -78,24 +88,31 @@ export function App() {
   }
 
   function updateField(index: number, patch: Partial<FieldDefinition>) {
-    setTemplate((current) => ({
-      ...current,
-      fields: current.fields.map((field, fieldIndex) =>
+    setTemplateInput({
+      ...template,
+      fields: template.fields.map((field, fieldIndex) =>
         fieldIndex === index ? { ...field, ...patch } : field
       )
-    }));
+    });
+  }
+
+  function updateFieldNumber(index: number, key: "offset" | "length", value: string) {
+    const trimmed = value.trim();
+    updateField(index, {
+      [key]: trimmed === "" ? undefined : Number(trimmed)
+    });
   }
 
   function loadSample() {
-    setTemplate(sampleTemplate as BinaryTemplate);
+    setTemplateInput(sampleTemplate);
     setSelectedFieldIndex(0);
     showToast("success", t("toast.jsonLoaded"));
   }
 
   function applyJsonText() {
     try {
-      const next = JSON.parse(jsonText) as BinaryTemplate;
-      setTemplate(next);
+      const next = JSON.parse(jsonText) as unknown;
+      setTemplateInput(next);
       setSelectedFieldIndex(0);
       showToast("success", t("toast.jsonLoaded"));
     } catch {
@@ -141,8 +158,8 @@ export function App() {
     file
       .text()
       .then((text) => {
-        const next = JSON.parse(text) as BinaryTemplate;
-        setTemplate(next);
+        const next = JSON.parse(text) as unknown;
+        setTemplateInput(next);
         setSelectedFieldIndex(0);
         showToast("success", t("toast.jsonLoaded"));
       })
@@ -160,6 +177,7 @@ export function App() {
             <h1>{t("app.title")}</h1>
             <p>{t("app.tagline")}</p>
           </div>
+          <span className="version-badge">{t("app.version", { version: appVersion })}</span>
         </div>
 
         <div className="header-controls">
@@ -331,6 +349,160 @@ export function App() {
               </div>
             )}
             {!hasErrors ? <div className="hex-flat">{formatHex(result.bytes)}</div> : null}
+          </section>
+
+          <section className="details-panel">
+            <div className="panel-heading">
+              <h2>{t("panel.details")}</h2>
+              {selectedLayout ? <span>{selectedLayout.field.name}</span> : null}
+            </div>
+            {selectedLayout ? (
+              <div className="details-grid">
+                <label>
+                  <span>{t("details.offset")}</span>
+                  <input
+                    className="detail-input"
+                    inputMode="numeric"
+                    value={selectedLayout.field.offset ?? ""}
+                    placeholder={String(selectedLayout.offset)}
+                    onChange={(event) =>
+                      updateFieldNumber(selectedLayout.index, "offset", event.target.value)
+                    }
+                  />
+                </label>
+
+                {["string", "bytes", "padding"].includes(selectedLayout.field.type) ? (
+                  <label>
+                    <span>{t("details.length")}</span>
+                    <input
+                      className="detail-input"
+                      inputMode="numeric"
+                      value={selectedLayout.field.length ?? ""}
+                      onChange={(event) =>
+                        updateFieldNumber(selectedLayout.index, "length", event.target.value)
+                      }
+                    />
+                  </label>
+                ) : null}
+
+                {["uint16", "uint32", "int16", "int32"].includes(selectedLayout.field.type) ? (
+                  <label>
+                    <span>{t("details.endian")}</span>
+                    <select
+                      className="detail-input"
+                      value={selectedLayout.field.endian ?? ""}
+                      onChange={(event) =>
+                        updateField(selectedLayout.index, {
+                          endian: event.target.value === "" ? undefined : event.target.value
+                        } as Partial<FieldDefinition>)
+                      }
+                    >
+                      <option value="">{t("details.unset")}</option>
+                      <option value="big">big</option>
+                      <option value="little">little</option>
+                      <option value="unknown">unknown</option>
+                    </select>
+                  </label>
+                ) : null}
+
+                {selectedLayout.field.type === "string" ? (
+                  <>
+                    <label>
+                      <span>{t("details.encoding")}</span>
+                      <select
+                        className="detail-input"
+                        value={selectedLayout.field.encoding ?? ""}
+                        onChange={(event) =>
+                          updateField(selectedLayout.index, {
+                            encoding: event.target.value === "" ? undefined : event.target.value
+                          } as Partial<FieldDefinition>)
+                        }
+                      >
+                        <option value="">{t("details.unset")}</option>
+                        <option value="ascii">ascii</option>
+                        <option value="utf-8">utf-8</option>
+                        <option value="shift_jis">shift_jis</option>
+                        <option value="unknown">unknown</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span>{t("details.padding")}</span>
+                      <select
+                        className="detail-input"
+                        value={selectedLayout.field.padding ?? "zero"}
+                        onChange={(event) =>
+                          updateField(selectedLayout.index, {
+                            padding: event.target.value
+                          } as Partial<FieldDefinition>)
+                        }
+                      >
+                        <option value="zero">zero</option>
+                        <option value="space">space</option>
+                      </select>
+                    </label>
+                  </>
+                ) : null}
+
+                {["bytes", "padding"].includes(selectedLayout.field.type) ? (
+                  <label>
+                    <span>{t("details.fill")}</span>
+                    <input
+                      className="detail-input mono"
+                      value={selectedLayout.field.fill ?? ""}
+                      placeholder="00"
+                      onChange={(event) =>
+                        updateField(selectedLayout.index, {
+                          fill: event.target.value.trim() === "" ? undefined : event.target.value
+                        })
+                      }
+                    />
+                  </label>
+                ) : null}
+
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selectedLayout.field.fixed)}
+                    onChange={(event) =>
+                      updateField(selectedLayout.index, { fixed: event.target.checked || undefined })
+                    }
+                  />
+                  <span>{t("details.fixed")}</span>
+                </label>
+
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selectedLayout.field.needsReview)}
+                    onChange={(event) =>
+                      updateField(selectedLayout.index, {
+                        needsReview: event.target.checked || undefined
+                      })
+                    }
+                  />
+                  <span>{t("details.needsReview")}</span>
+                </label>
+
+                {selectedLayout.field.needsReview ? (
+                  <p className="details-hint">{t("details.clearReview")}</p>
+                ) : null}
+
+                <label className="details-note">
+                  <span>{t("details.note")}</span>
+                  <textarea
+                    value={selectedLayout.field.note ?? ""}
+                    onChange={(event) =>
+                      updateField(selectedLayout.index, {
+                        note: event.target.value === "" ? undefined : event.target.value
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="empty-state">{t("details.empty")}</div>
+            )}
           </section>
 
           <section className="issues-panel">

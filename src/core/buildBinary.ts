@@ -1,17 +1,21 @@
 import { encodeString, padFixedStringBytes } from "./encodeString";
 import { calculateFieldLayout } from "./layout";
+import { parseBinaryTemplate } from "./parseTemplate";
 import { parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
-import { validateTemplate } from "./validateTemplate";
+import { validateParsedTemplate } from "./validateTemplate";
 import { integerTypes, type BinaryTemplate, type FieldDefinition, type BuildResult } from "./types";
 
-export function buildBinary(template: BinaryTemplate): BuildResult {
+export function buildBinary(templateInput: unknown): BuildResult {
+  const parsed = parseBinaryTemplate(templateInput);
+  const template = parsed.template;
   const layouts = calculateFieldLayout(template);
-  const issues = validateTemplate(template);
+  const issues = [...parsed.issues, ...validateParsedTemplate(template)];
   const hasError = issues.some((issue) => issue.level === "error");
 
   if (hasError) {
     return {
       bytes: new Uint8Array(),
+      template,
       layouts,
       issues
     };
@@ -25,7 +29,7 @@ export function buildBinary(template: BinaryTemplate): BuildResult {
     bytes.set(fieldBytes, layout.offset);
   }
 
-  return { bytes, layouts, issues };
+  return { bytes, template, layouts, issues };
 }
 
 function buildFieldBytes(field: FieldDefinition, template: BinaryTemplate): Uint8Array {

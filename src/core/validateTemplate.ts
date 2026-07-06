@@ -1,5 +1,6 @@
 import { encodeString } from "./encodeString";
 import { calculateFieldLayout, getFieldSize } from "./layout";
+import { parseBinaryTemplate } from "./parseTemplate";
 import { parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
 import {
   integerTypes,
@@ -10,7 +11,7 @@ import {
   type ValidationIssue
 } from "./types";
 
-const fieldTypes: FieldType[] = [
+export const fieldTypes: FieldType[] = [
   "uint8",
   "uint16",
   "uint32",
@@ -39,15 +40,20 @@ function issue(
   };
 }
 
-export function validateTemplate(template: BinaryTemplate): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
+export function validateTemplate(templateInput: unknown): ValidationIssue[] {
+  const parsed = parseBinaryTemplate(templateInput);
+  return [...parsed.issues, ...validateParsedTemplate(parsed.template)];
+}
 
-  if (!template || typeof template !== "object") {
-    return [issue("error", "template.invalid")];
-  }
+export function validateParsedTemplate(template: BinaryTemplate): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
 
   if (!template.formatVersion) {
     issues.push(issue("error", "template.formatVersion.required"));
+  } else if (template.formatVersion !== "0.1") {
+    issues.push(issue("error", "template.formatVersion.unsupported", undefined, undefined, {
+      version: template.formatVersion
+    }));
   }
 
   if (!template.name) {
@@ -74,7 +80,7 @@ export function validateTemplate(template: BinaryTemplate): ValidationIssue[] {
     }
 
     if (field.needsReview) {
-      issues.push(issue("warning", "review.required", index, field));
+      issues.push(issue("error", "review.required", index, field));
     }
 
     if (field.type in integerTypes) {
@@ -96,17 +102,17 @@ export function validateTemplate(template: BinaryTemplate): ValidationIssue[] {
       if (info.size > 1) {
         const endian = field.endian ?? template.defaultEndian;
         if (!endian || endian === "unknown") {
-          issues.push(issue("warning", "endian.unknown", index, field));
+          issues.push(issue("error", "endian.unknown", index, field));
         }
       }
     }
 
     if (field.type === "string") {
       validateLengthField(issues, field, index);
-      const encoding = field.encoding ?? template.defaultEncoding ?? "utf-8";
+      const encoding = field.encoding ?? template.defaultEncoding;
 
-      if (encoding === "unknown") {
-        issues.push(issue("warning", "encoding.unknown", index, field));
+      if (!encoding || encoding === "unknown") {
+        issues.push(issue("error", "encoding.unknown", index, field));
       } else if (!supportedEncodings.includes(encoding)) {
         issues.push(issue("error", "encoding.unsupported", index, field, { encoding }));
       } else if (typeof field.length === "number" && field.length > 0) {
@@ -128,6 +134,10 @@ export function validateTemplate(template: BinaryTemplate): ValidationIssue[] {
 
     if (field.type === "bytes") {
       validateLengthField(issues, field, index);
+
+      if (field.value !== undefined && field.value !== "" && field.fill !== undefined) {
+        issues.push(issue("error", "bytes.ambiguousSource", index, field));
+      }
 
       if (field.value !== undefined && field.value !== "") {
         const parsed = parseHexBytes(field.value);
@@ -151,7 +161,7 @@ export function validateTemplate(template: BinaryTemplate): ValidationIssue[] {
     if (field.type === "padding") {
       validateLengthField(issues, field, index);
       if (field.value !== undefined && field.value !== "") {
-        issues.push(issue("warning", "reserved.unexpectedValue", index, field));
+        issues.push(issue("error", "reserved.unexpectedValue", index, field));
       }
       if (field.fill !== undefined && !parseFillByte(field.fill).ok) {
         issues.push(issue("error", "bytes.invalidFill", index, field));
@@ -160,6 +170,26 @@ export function validateTemplate(template: BinaryTemplate): ValidationIssue[] {
 
     if (field.type === "ipv4" && !isValidIpv4(String(field.value ?? ""))) {
       issues.push(issue("error", "ipv4.invalid", index, field));
+    }
+
+    if (field.offset !== undefined) {
+      if (!Number.isInteger(field.offset) || field.offset < 0) {
+        issues.push(issue("error", "field.offset.invalid", index, field));
+      } else {
+        const layout = calculateFieldLayout(template)[index];
+        if (layout && field.offset !== layout.offset) {
+          issues.push(
+            issue("error", "field.offsetMismatch", index, field, {
+              actual: layout.offset,
+              expected: field.offset
+            })
+          );
+        }
+      }
+    }
+
+    if (field.fixed && field.value === undefined && field.type !== "padding") {
+      issues.push(issue("error", "fixed.value.required", index, field));
     }
 
     if (getFieldSize(field) === 0 && ["string", "bytes", "padding"].includes(field.type)) {

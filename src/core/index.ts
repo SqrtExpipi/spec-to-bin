@@ -3,5 +3,6 @@ export * from "./encodeString";
 export * from "./formatHex";
 export * from "./layout";
 export * from "./parse";
+export * from "./parseTemplate";
 export * from "./types";
 export * from "./validateTemplate";

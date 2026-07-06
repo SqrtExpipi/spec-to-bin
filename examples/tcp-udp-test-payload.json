@@ -7,22 +7,26 @@
     {
       "name": "command",
       "type": "uint8",
+      "offset": 0,
       "value": "0x12"
     },
     {
       "name": "sequence",
       "type": "uint16",
+      "offset": 1,
       "value": 1
     },
     {
       "name": "payload",
       "type": "bytes",
+      "offset": 3,
       "length": 6,
       "value": "DE AD BE EF 00 01"
     },
     {
       "name": "terminator",
       "type": "uint8",
+      "offset": 9,
       "value": "0x0A",
       "fixed": true
     }

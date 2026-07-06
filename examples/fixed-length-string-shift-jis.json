@@ -7,6 +7,7 @@
     {
       "name": "displayName",
       "type": "string",
+      "offset": 0,
       "length": 20,
       "encoding": "shift_jis",
       "padding": "zero",
@@ -15,6 +16,7 @@
     {
       "name": "comment",
       "type": "string",
+      "offset": 20,
       "length": 16,
       "encoding": "utf-8",
       "padding": "space",

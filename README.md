@@ -20,6 +20,7 @@ It is not a general-purpose hex editor. The goal is to reduce manual hex editing
 - Edit field values in a GUI
 - Show offsets and byte sizes
 - Validate field values
+- Validate expected offsets against calculated offsets
 - Preview generated hex bytes
 - Save `.bin`
 - English and Japanese UI
@@ -70,11 +71,13 @@ npm run test:run
     {
       "name": "messageId",
       "type": "uint16",
+      "offset": 0,
       "value": "0x000F"
     },
     {
       "name": "callSign",
       "type": "string",
+      "offset": 2,
       "length": 20,
       "encoding": "shift_jis",
       "padding": "zero",

@@ -26,6 +26,7 @@ export interface FieldDefinition {
   name: string;
   type: FieldType;
   value?: string | number;
+  offset?: number;
   length?: number;
   endian?: Endian;
   encoding?: EncodingName;
@@ -55,6 +56,7 @@ export interface FieldLayout {
 
 export interface BuildResult {
   bytes: Uint8Array;
+  template: BinaryTemplate;
   layouts: FieldLayout[];
   issues: ValidationIssue[];
 }
@@ -78,4 +80,6 @@ export const integerTypes: Record<
   int32: { size: 4, min: -0x80000000, max: 0x7fffffff, signed: true }
 };
 
-export const supportedEncodings: EncodingName[] = ["ascii", "utf-8", "shift_jis"];
+export const supportedEncodings: EncodingName[] = ["ascii", "utf-8", "shift_jis", "unknown"];
+export const supportedEndians: Endian[] = ["big", "little", "unknown"];
+export const supportedPaddings: PaddingMode[] = ["zero", "space"];
