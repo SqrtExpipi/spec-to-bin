@@ -1,0 +1,33 @@
+{
+  "formatVersion": "0.1",
+  "name": "eeprom_settings_sample",
+  "defaultEndian": "little",
+  "defaultEncoding": "ascii",
+  "fields": [
+    {
+      "name": "formatVersion",
+      "type": "uint16",
+      "value": 1,
+      "fixed": true
+    },
+    {
+      "name": "deviceId",
+      "type": "uint32",
+      "value": "0x12345678"
+    },
+    {
+      "name": "deviceName",
+      "type": "string",
+      "length": 16,
+      "encoding": "ascii",
+      "padding": "zero",
+      "value": "DEMO-UNIT"
+    },
+    {
+      "name": "reserved",
+      "type": "padding",
+      "length": 8,
+      "fill": "FF"
+    }
+  ]
+}

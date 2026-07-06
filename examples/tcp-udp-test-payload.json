@@ -1,0 +1,30 @@
+{
+  "formatVersion": "0.1",
+  "name": "tcp_udp_test_payload",
+  "defaultEndian": "big",
+  "defaultEncoding": "utf-8",
+  "fields": [
+    {
+      "name": "command",
+      "type": "uint8",
+      "value": "0x12"
+    },
+    {
+      "name": "sequence",
+      "type": "uint16",
+      "value": 1
+    },
+    {
+      "name": "payload",
+      "type": "bytes",
+      "length": 6,
+      "value": "DE AD BE EF 00 01"
+    },
+    {
+      "name": "terminator",
+      "type": "uint8",
+      "value": "0x0A",
+      "fixed": true
+    }
+  ]
+}

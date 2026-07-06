@@ -1,0 +1,42 @@
+{
+  "formatVersion": "0.1",
+  "name": "sample_packet",
+  "defaultEndian": "big",
+  "defaultEncoding": "shift_jis",
+  "fields": [
+    {
+      "name": "messageId",
+      "type": "uint16",
+      "value": "0x000F"
+    },
+    {
+      "name": "count",
+      "type": "uint16",
+      "value": 99
+    },
+    {
+      "name": "reserved",
+      "type": "bytes",
+      "length": 4,
+      "fill": "00"
+    },
+    {
+      "name": "ipAddress",
+      "type": "ipv4",
+      "value": "192.168.0.10"
+    },
+    {
+      "name": "port",
+      "type": "uint16",
+      "value": 36300
+    },
+    {
+      "name": "callSign",
+      "type": "string",
+      "length": 20,
+      "encoding": "shift_jis",
+      "padding": "zero",
+      "value": "sikikan1"
+    }
+  ]
+}

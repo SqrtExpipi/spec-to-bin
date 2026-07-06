@@ -1,0 +1,10 @@
+{
+  "name": "Spec to BIN",
+  "short_name": "Spec to BIN",
+  "description": "Build test binaries from structured specifications.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#2563eb",
+  "icons": []
+}
