@@ -59,6 +59,10 @@ export type MessageKey =
   | "details.empty"
   | "details.unset"
   | "details.clearReview"
+  | "copy.title"
+  | "copy.copy"
+  | "copy.ready"
+  | "copy.blocked"
   | "issue.template.invalid"
   | "issue.template.formatVersion.required"
   | "issue.template.formatVersion.unsupported"
@@ -153,6 +157,10 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "details.empty": "Select a field to edit its definition.",
     "details.unset": "Unset",
     "details.clearReview": "Clear review flag after confirming the field.",
+    "copy.title": "Copy results",
+    "copy.copy": "Copy",
+    "copy.ready": "Ready to copy",
+    "copy.blocked": "Fix errors before copying",
     "issue.template.invalid": "Template is invalid.",
     "issue.template.formatVersion.required": "formatVersion is required.",
     "issue.template.formatVersion.unsupported": "formatVersion is unsupported: {version}",
@@ -244,6 +252,10 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "details.empty": "項目を選択すると定義を編集できます。",
     "details.unset": "未設定",
     "details.clearReview": "確認後に要確認フラグを外してください。",
+    "copy.title": "コピー用出力",
+    "copy.copy": "コピー",
+    "copy.ready": "コピーできます",
+    "copy.blocked": "エラー修正後にコピーできます",
     "issue.template.invalid": "テンプレートが不正です。",
     "issue.template.formatVersion.required": "formatVersion は必須です。",
     "issue.template.formatVersion.unsupported": "未対応の formatVersion です: {version}",

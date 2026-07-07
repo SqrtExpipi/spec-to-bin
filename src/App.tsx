@@ -12,7 +12,14 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import sampleTemplate from "../examples/communication-packet.json";
 import { aiPrompt } from "./aiPrompt";
-import { buildBinary, formatHex, toHexRows, toOffset, type FieldDefinition } from "./core";
+import {
+  buildBinary,
+  createCopyFormats,
+  formatHex,
+  toHexRows,
+  toOffset,
+  type FieldDefinition
+} from "./core";
 import { detectInitialLocale, saveLocale, translate, type Locale } from "./i18n";
 import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./theme";
 import { appVersion } from "./version";
@@ -82,6 +89,7 @@ export function App() {
     ? { start: selectedLayout.offset, end: selectedLayout.offset + selectedLayout.size }
     : null;
   const hexRows = useMemo(() => toHexRows(result.bytes), [result.bytes]);
+  const copyFormats = useMemo(() => createCopyFormats(result.bytes), [result.bytes]);
 
   function showToast(kind: NonNullable<ToastState>["kind"], message: string) {
     setToast({ kind, message });
@@ -349,6 +357,32 @@ export function App() {
               </div>
             )}
             {!hasErrors ? <div className="hex-flat">{formatHex(result.bytes)}</div> : null}
+            <div className="copy-results">
+              <div className="copy-results-heading">
+                <h3>{t("copy.title")}</h3>
+                <span>{hasErrors ? t("copy.blocked") : t("copy.ready")}</span>
+              </div>
+              <div className="copy-format-list">
+                {copyFormats.map((format) => (
+                  <div className="copy-format-row" key={format.id}>
+                    <div className="copy-format-meta">
+                      <strong>{format.label}</strong>
+                      {format.language ? <span>{format.language}</span> : null}
+                    </div>
+                    <code>{hasErrors ? "" : format.value}</code>
+                    <button
+                      type="button"
+                      className="button compact"
+                      disabled={hasErrors}
+                      onClick={() => copyText(format.value)}
+                    >
+                      <Clipboard size={14} />
+                      {t("copy.copy")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
 
           <section className="details-panel">

@@ -1,5 +1,6 @@
 export * from "./buildBinary";
 export * from "./encodeString";
+export * from "./exportFormats";
 export * from "./formatHex";
 export * from "./layout";
 export * from "./parse";

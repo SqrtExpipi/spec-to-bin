@@ -438,6 +438,75 @@ h2 {
   padding: 10px 14px;
 }
 
+.copy-results {
+  border-top: 1px solid var(--border);
+}
+
+.copy-results-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+}
+
+.copy-results-heading h3 {
+  font-size: 13px;
+  margin: 0;
+}
+
+.copy-results-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.copy-format-list {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+.copy-format-row {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 108px minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding: 7px;
+}
+
+.copy-format-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.copy-format-meta strong {
+  font-size: 12px;
+}
+
+.copy-format-meta span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.copy-format-row code {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .empty-state {
   align-items: center;
   color: var(--muted);
