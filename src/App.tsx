@@ -15,10 +15,13 @@ import { aiPrompt } from "./aiPrompt";
 import {
   buildBinary,
   createCopyFormats,
-  formatHex,
   toHexRows,
   toOffset,
-  type FieldDefinition
+  type EncodingName,
+  type Endian,
+  type FieldDefinition,
+  type FieldType,
+  type PaddingMode
 } from "./core";
 import { detectInitialLocale, saveLocale, translate, type Locale } from "./i18n";
 import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./theme";
@@ -27,6 +30,21 @@ import { appVersion } from "./version";
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 
 const issueKeyPrefix = "issue.";
+const fieldTypeOptions: FieldType[] = [
+  "uint8",
+  "uint16",
+  "uint32",
+  "int8",
+  "int16",
+  "int32",
+  "bytes",
+  "string",
+  "ipv4",
+  "padding"
+];
+const endianOptions: Endian[] = ["big", "little", "unknown"];
+const encodingOptions: EncodingName[] = ["ascii", "utf-8", "shift_jis", "unknown"];
+const paddingOptions: PaddingMode[] = ["zero", "space"];
 
 export function App() {
   const [templateInput, setTemplateInput] = useState<unknown>(sampleTemplate);
@@ -36,6 +54,7 @@ export function App() {
   const [locale, setLocale] = useState<Locale>(() => detectInitialLocale());
   const [theme, setTheme] = useState<ThemeMode>(() => detectInitialTheme());
   const [toast, setToast] = useState<ToastState>(null);
+  const [copyOpen, setCopyOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
@@ -105,10 +124,25 @@ export function App() {
   }
 
   function updateFieldNumber(index: number, key: "offset" | "length", value: string) {
-    const trimmed = value.trim();
+    const parsed = parseIntegerInput(value);
     updateField(index, {
-      [key]: trimmed === "" ? undefined : Number(trimmed)
+      [key]: parsed
     });
+  }
+
+  function updateFieldType(index: number, type: FieldType) {
+    const field = template.fields[index];
+    const patch: Partial<FieldDefinition> = { type };
+    if (["string", "bytes", "padding"].includes(type) && field.length === undefined) {
+      patch.length = selectedLayout?.index === index && selectedLayout.size > 0 ? selectedLayout.size : 1;
+    }
+    if (["uint16", "uint32", "int16", "int32"].includes(type) && field.endian === undefined) {
+      patch.endian = template.defaultEndian ?? "big";
+    }
+    if (type === "string" && field.encoding === undefined) {
+      patch.encoding = template.defaultEncoding ?? "utf-8";
+    }
+    updateField(index, patch);
   }
 
   function loadSample() {
@@ -215,33 +249,38 @@ export function App() {
           hidden
           onChange={(event) => onJsonFileSelected(event.target.files?.[0])}
         />
-        <button type="button" className="button primary" onClick={() => fileInputRef.current?.click()}>
-          <FileInput size={16} />
-          {t("toolbar.loadJson")}
-        </button>
-        <button type="button" className="button" onClick={saveJson}>
-          <Save size={16} />
-          {t("toolbar.saveJson")}
-        </button>
-        <button type="button" className="button strong" onClick={saveBin}>
-          <Download size={16} />
-          {t("toolbar.saveBin")}
-        </button>
-        <button type="button" className="button" onClick={loadSample}>
-          {t("toolbar.loadSample")}
-        </button>
-        <button type="button" className="button" onClick={() => copyText(aiPrompt)}>
-          <Clipboard size={16} />
-          {t("toolbar.copyPrompt")}
-        </button>
-        <button type="button" className="button" onClick={() => showToast("info", t("toast.validationComplete"))}>
-          <CheckCircle2 size={16} />
-          {t("toolbar.validate")}
-        </button>
-        <button type="button" className="button" onClick={() => setJsonOpen((open) => !open)}>
-          <Braces size={16} />
-          {t("toolbar.jsonPanel")}
-        </button>
+        <div className="toolbar-group">
+          <span>{locale === "ja" ? "テンプレート" : "Template"}</span>
+          <button type="button" className="button primary" onClick={() => fileInputRef.current?.click()}>
+            <FileInput size={16} />
+            {t("toolbar.loadJson")}
+          </button>
+          <button type="button" className="button" onClick={saveJson}>
+            <Save size={16} />
+            {t("toolbar.saveJson")}
+          </button>
+          <button type="button" className="button" onClick={() => setJsonOpen((open) => !open)}>
+            <Braces size={16} />
+            {t("toolbar.jsonPanel")}
+          </button>
+        </div>
+        <div className="toolbar-group">
+          <span>{locale === "ja" ? "出力" : "Output"}</span>
+          <button type="button" className="button strong" onClick={saveBin}>
+            <Download size={16} />
+            {t("toolbar.saveBin")}
+          </button>
+        </div>
+        <div className="toolbar-group secondary">
+          <span>{locale === "ja" ? "補助" : "Help"}</span>
+          <button type="button" className="button" onClick={loadSample}>
+            {t("toolbar.loadSample")}
+          </button>
+          <button type="button" className="button" onClick={() => copyText(aiPrompt)}>
+            <Clipboard size={16} />
+            {t("toolbar.copyPrompt")}
+          </button>
+        </div>
         <div className="privacy-note">
           <ShieldCheck size={15} />
           {t("toolbar.privacy")}
@@ -271,6 +310,8 @@ export function App() {
                   <th>{t("table.name")}</th>
                   <th>{t("table.type")}</th>
                   <th>{t("table.size")}</th>
+                  <th>Format</th>
+                  <th>Fill / Padding</th>
                   <th>{t("table.value")}</th>
                   <th>{t("table.status")}</th>
                   <th>{t("table.note")}</th>
@@ -286,18 +327,133 @@ export function App() {
                       className={layout.index === selectedFieldIndex ? "selected" : ""}
                       onClick={() => setSelectedFieldIndex(layout.index)}
                     >
-                      <td className="mono subtle">{toOffset(layout.offset)}</td>
-                      <td className="field-name">{layout.field.name}</td>
                       <td>
-                        <span className="type-token">{layout.field.type}</span>
+                        <input
+                          className="table-input mono offset-cell"
+                          value={layout.field.offset === undefined ? "" : toOffset(layout.field.offset)}
+                          placeholder={toOffset(layout.offset)}
+                          onChange={(event) =>
+                            updateFieldNumber(layout.index, "offset", event.target.value)
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                        />
                       </td>
-                      <td className="mono">{layout.size}</td>
+                      <td>
+                        <input
+                          className="table-input field-name"
+                          value={layout.field.name}
+                          onChange={(event) => updateField(layout.index, { name: event.target.value })}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className="table-input type-select"
+                          value={layout.field.type}
+                          onChange={(event) => updateFieldType(layout.index, event.target.value as FieldType)}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {fieldTypeOptions.map((type) => (
+                            <option value={type} key={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        {["string", "bytes", "padding"].includes(layout.field.type) ? (
+                          <input
+                            className="table-input mono size-cell"
+                            value={layout.field.length ?? ""}
+                            onChange={(event) =>
+                              updateFieldNumber(layout.index, "length", event.target.value)
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        ) : (
+                          <input className="table-input mono size-cell" value={layout.size} disabled />
+                        )}
+                      </td>
+                      <td>
+                        {["uint16", "uint32", "int16", "int32"].includes(layout.field.type) ? (
+                          <select
+                            className="table-input"
+                            value={layout.field.endian ?? ""}
+                            onChange={(event) =>
+                              updateField(layout.index, {
+                                endian: event.target.value === "" ? undefined : (event.target.value as Endian)
+                              })
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <option value="">{t("details.unset")}</option>
+                            {endianOptions.map((endian) => (
+                              <option value={endian} key={endian}>
+                                {endian}
+                              </option>
+                            ))}
+                          </select>
+                        ) : layout.field.type === "string" ? (
+                          <select
+                            className="table-input"
+                            value={layout.field.encoding ?? ""}
+                            onChange={(event) =>
+                              updateField(layout.index, {
+                                encoding:
+                                  event.target.value === "" ? undefined : (event.target.value as EncodingName)
+                              })
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <option value="">{t("details.unset")}</option>
+                            {encodingOptions.map((encoding) => (
+                              <option value={encoding} key={encoding}>
+                                {encoding}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="muted-dash">-</span>
+                        )}
+                      </td>
+                      <td>
+                        {layout.field.type === "string" ? (
+                          <select
+                            className="table-input"
+                            value={layout.field.padding ?? "zero"}
+                            onChange={(event) =>
+                              updateField(layout.index, { padding: event.target.value as PaddingMode })
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {paddingOptions.map((padding) => (
+                              <option value={padding} key={padding}>
+                                {padding}
+                              </option>
+                            ))}
+                          </select>
+                        ) : ["bytes", "padding"].includes(layout.field.type) ? (
+                          <input
+                            className="table-input mono fill-cell"
+                            value={layout.field.fill ?? ""}
+                            placeholder="00"
+                            onChange={(event) =>
+                              updateField(layout.index, {
+                                fill: event.target.value.trim() === "" ? undefined : event.target.value
+                              })
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="muted-dash">-</span>
+                        )}
+                      </td>
                       <td>
                         {layout.field.type === "padding" ? (
-                          <span className="subtle">fill {layout.field.fill ?? "00"}</span>
+                          <span className="muted-dash">-</span>
                         ) : (
                           <input
-                            className="value-input"
+                            className="table-input value-input"
                             value={String(layout.field.value ?? "")}
                             disabled={layout.field.fixed}
                             onChange={(event) => updateField(layout.index, { value: event.target.value })}
@@ -308,7 +464,18 @@ export function App() {
                       <td>
                         <StatusBadge status={status} label={t(`status.${status}`)} />
                       </td>
-                      <td className="note-cell">{layout.field.note ?? ""}</td>
+                      <td>
+                        <input
+                          className="table-input note-cell"
+                          value={layout.field.note ?? ""}
+                          onChange={(event) =>
+                            updateField(layout.index, {
+                              note: event.target.value === "" ? undefined : event.target.value
+                            })
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </td>
                     </tr>
                   );
                 })}
@@ -320,222 +487,83 @@ export function App() {
         <aside className="side-panel">
           <section className="preview-panel">
             <div className="panel-heading">
-              <h2>{t("panel.preview")}</h2>
-              {selectedLayout ? (
-                <span>
-                  {t("panel.selectedField")}: {selectedLayout.field.name}
-                </span>
-              ) : null}
+              <div>
+                <h2>{t("panel.preview")}</h2>
+                {selectedLayout ? (
+                  <span>
+                    {t("panel.selectedField")}: {selectedLayout.field.name}
+                  </span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="button compact"
+                disabled={hasErrors}
+                onClick={() => setCopyOpen((open) => !open)}
+              >
+                <Clipboard size={14} />
+                {t("copy.copy")}
+              </button>
             </div>
+            {copyOpen && !hasErrors ? (
+              <div className="copy-popover">
+                <div className="copy-popover-heading">
+                  <strong>{t("copy.title")}</strong>
+                  <span>{t("copy.ready")}</span>
+                </div>
+                {copyFormats.map((format) => (
+                  <div className="copy-popover-row" key={format.id}>
+                    <div>
+                      <strong>{format.label}</strong>
+                      {format.language ? <span>{format.language}</span> : null}
+                    </div>
+                    <code>{format.value}</code>
+                    <button type="button" className="button compact" onClick={() => copyText(format.value)}>
+                      {t("copy.copy")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {hasErrors ? (
               <div className="empty-state">
                 <XCircle size={18} />
                 {t("panel.previewBlocked")}
               </div>
             ) : (
-              <div className="hex-view" aria-label="Hex preview">
+              <div className="hex-dump" aria-label="Hex preview">
+                <div className="hex-dump-row hex-dump-header">
+                  <span>Offset</span>
+                  {Array.from({ length: 16 }, (_, column) => (
+                    <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
+                  ))}
+                  <span>ASCII</span>
+                </div>
                 {hexRows.map((row) => (
-                  <div className="hex-row" key={row.offset}>
+                  <div className="hex-dump-row" key={row.offset}>
                     <span className="hex-offset">{toOffset(row.offset)}</span>
-                    <span className="hex-bytes">
-                      {row.bytes.map((byte) => (
+                    {Array.from({ length: 16 }, (_, column) => {
+                      const byte = row.bytes[column];
+                      return (
                         <span
-                          key={byte.index}
+                          key={column}
                           className={
-                            selectedRange && byte.index >= selectedRange.start && byte.index < selectedRange.end
+                            byte &&
+                            selectedRange &&
+                            byte.index >= selectedRange.start &&
+                            byte.index < selectedRange.end
                               ? "hex-byte selected-byte"
                               : "hex-byte"
                           }
                         >
-                          {byte.text}
+                          {byte?.text ?? ""}
                         </span>
-                      ))}
-                    </span>
+                      );
+                    })}
                     <span className="hex-ascii">{row.ascii}</span>
                   </div>
                 ))}
               </div>
-            )}
-            {!hasErrors ? <div className="hex-flat">{formatHex(result.bytes)}</div> : null}
-            <div className="copy-results">
-              <div className="copy-results-heading">
-                <h3>{t("copy.title")}</h3>
-                <span>{hasErrors ? t("copy.blocked") : t("copy.ready")}</span>
-              </div>
-              <div className="copy-format-list">
-                {copyFormats.map((format) => (
-                  <div className="copy-format-row" key={format.id}>
-                    <div className="copy-format-meta">
-                      <strong>{format.label}</strong>
-                      {format.language ? <span>{format.language}</span> : null}
-                    </div>
-                    <code>{hasErrors ? "" : format.value}</code>
-                    <button
-                      type="button"
-                      className="button compact"
-                      disabled={hasErrors}
-                      onClick={() => copyText(format.value)}
-                    >
-                      <Clipboard size={14} />
-                      {t("copy.copy")}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="details-panel">
-            <div className="panel-heading">
-              <h2>{t("panel.details")}</h2>
-              {selectedLayout ? <span>{selectedLayout.field.name}</span> : null}
-            </div>
-            {selectedLayout ? (
-              <div className="details-grid">
-                <label>
-                  <span>{t("details.offset")}</span>
-                  <input
-                    className="detail-input"
-                    inputMode="numeric"
-                    value={selectedLayout.field.offset ?? ""}
-                    placeholder={String(selectedLayout.offset)}
-                    onChange={(event) =>
-                      updateFieldNumber(selectedLayout.index, "offset", event.target.value)
-                    }
-                  />
-                </label>
-
-                {["string", "bytes", "padding"].includes(selectedLayout.field.type) ? (
-                  <label>
-                    <span>{t("details.length")}</span>
-                    <input
-                      className="detail-input"
-                      inputMode="numeric"
-                      value={selectedLayout.field.length ?? ""}
-                      onChange={(event) =>
-                        updateFieldNumber(selectedLayout.index, "length", event.target.value)
-                      }
-                    />
-                  </label>
-                ) : null}
-
-                {["uint16", "uint32", "int16", "int32"].includes(selectedLayout.field.type) ? (
-                  <label>
-                    <span>{t("details.endian")}</span>
-                    <select
-                      className="detail-input"
-                      value={selectedLayout.field.endian ?? ""}
-                      onChange={(event) =>
-                        updateField(selectedLayout.index, {
-                          endian: event.target.value === "" ? undefined : event.target.value
-                        } as Partial<FieldDefinition>)
-                      }
-                    >
-                      <option value="">{t("details.unset")}</option>
-                      <option value="big">big</option>
-                      <option value="little">little</option>
-                      <option value="unknown">unknown</option>
-                    </select>
-                  </label>
-                ) : null}
-
-                {selectedLayout.field.type === "string" ? (
-                  <>
-                    <label>
-                      <span>{t("details.encoding")}</span>
-                      <select
-                        className="detail-input"
-                        value={selectedLayout.field.encoding ?? ""}
-                        onChange={(event) =>
-                          updateField(selectedLayout.index, {
-                            encoding: event.target.value === "" ? undefined : event.target.value
-                          } as Partial<FieldDefinition>)
-                        }
-                      >
-                        <option value="">{t("details.unset")}</option>
-                        <option value="ascii">ascii</option>
-                        <option value="utf-8">utf-8</option>
-                        <option value="shift_jis">shift_jis</option>
-                        <option value="unknown">unknown</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      <span>{t("details.padding")}</span>
-                      <select
-                        className="detail-input"
-                        value={selectedLayout.field.padding ?? "zero"}
-                        onChange={(event) =>
-                          updateField(selectedLayout.index, {
-                            padding: event.target.value
-                          } as Partial<FieldDefinition>)
-                        }
-                      >
-                        <option value="zero">zero</option>
-                        <option value="space">space</option>
-                      </select>
-                    </label>
-                  </>
-                ) : null}
-
-                {["bytes", "padding"].includes(selectedLayout.field.type) ? (
-                  <label>
-                    <span>{t("details.fill")}</span>
-                    <input
-                      className="detail-input mono"
-                      value={selectedLayout.field.fill ?? ""}
-                      placeholder="00"
-                      onChange={(event) =>
-                        updateField(selectedLayout.index, {
-                          fill: event.target.value.trim() === "" ? undefined : event.target.value
-                        })
-                      }
-                    />
-                  </label>
-                ) : null}
-
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selectedLayout.field.fixed)}
-                    onChange={(event) =>
-                      updateField(selectedLayout.index, { fixed: event.target.checked || undefined })
-                    }
-                  />
-                  <span>{t("details.fixed")}</span>
-                </label>
-
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selectedLayout.field.needsReview)}
-                    onChange={(event) =>
-                      updateField(selectedLayout.index, {
-                        needsReview: event.target.checked || undefined
-                      })
-                    }
-                  />
-                  <span>{t("details.needsReview")}</span>
-                </label>
-
-                {selectedLayout.field.needsReview ? (
-                  <p className="details-hint">{t("details.clearReview")}</p>
-                ) : null}
-
-                <label className="details-note">
-                  <span>{t("details.note")}</span>
-                  <textarea
-                    value={selectedLayout.field.note ?? ""}
-                    onChange={(event) =>
-                      updateField(selectedLayout.index, {
-                        note: event.target.value === "" ? undefined : event.target.value
-                      })
-                    }
-                  />
-                </label>
-              </div>
-            ) : (
-              <div className="empty-state">{t("details.empty")}</div>
             )}
           </section>
 
@@ -637,6 +665,23 @@ function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const buffer = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buffer).set(bytes);
   return buffer;
+}
+
+function parseIntegerInput(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return undefined;
+  }
+
+  if (/^0x[0-9a-f]+$/i.test(trimmed)) {
+    return Number.parseInt(trimmed.slice(2), 16);
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return Number.parseInt(trimmed, 10);
+  }
+
+  return undefined;
 }
 
 function safeFileName(value: string): string {
