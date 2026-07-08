@@ -1,12 +1,13 @@
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   Braces,
+  ChevronDown,
+  ChevronUp,
   Clipboard,
   Copy,
   Download,
   FileInput,
+  GripVertical,
   Info,
   Monitor,
   Moon,
@@ -19,7 +20,23 @@ import {
   X,
   XCircle
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import sampleTemplate from "../examples/communication-packet.json";
 import { aiPrompt } from "./aiPrompt";
 import {
@@ -31,8 +48,11 @@ import {
   type EncodingName,
   type Endian,
   type FieldDefinition,
+  type FieldLayout,
   type FieldType,
-  type PaddingMode
+  type HexRow,
+  type PaddingMode,
+  type ValidationIssue
 } from "./core";
 import { detectInitialLocale, saveLocale, translate, type Locale } from "./i18n";
 import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./theme";
@@ -40,6 +60,7 @@ import { appVersion } from "./version";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 type ResetMode = "blank" | "sample";
+type Translator = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) => string;
 
 const issueKeyPrefix = "issue.";
 
@@ -77,6 +98,7 @@ export function App() {
   const [toast, setToast] = useState<ToastState>(null);
   const [copyOpen, setCopyOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
@@ -135,6 +157,18 @@ export function App() {
     : null;
   const hexRows = useMemo(() => toHexRows(result.bytes), [result.bytes]);
   const copyFormats = useMemo(() => createCopyFormats(result.bytes), [result.bytes]);
+  const sortableFieldIds = useMemo(
+    () => result.layouts.map((layout) => fieldSortableId(layout.index)),
+    [result.layouts]
+  );
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 }
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
 
   useEffect(() => {
     if (hasErrors) {
@@ -215,16 +249,29 @@ export function App() {
     setFields(fields, insertIndex);
   }
 
-  function moveField(index: number, direction: -1 | 1) {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= template.fields.length) {
+  function handleFieldDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const fromIndex = fieldIndexFromSortableId(String(active.id));
+    const toIndex = fieldIndexFromSortableId(String(over.id));
+    if (
+      fromIndex === undefined ||
+      toIndex === undefined ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= template.fields.length ||
+      toIndex >= template.fields.length
+    ) {
       return;
     }
 
     const fields = [...template.fields];
-    const [field] = fields.splice(index, 1);
-    fields.splice(nextIndex, 0, field);
-    setFields(fields, nextIndex);
+    const [field] = fields.splice(fromIndex, 1);
+    fields.splice(toIndex, 0, field);
+    setFields(fields, toIndex);
   }
 
   function duplicateField(index: number) {
@@ -402,6 +449,18 @@ export function App() {
       </section>
 
       <main className="workspace">
+        <HexPreviewPanel
+          copyDisabled={hasErrors}
+          expanded={previewExpanded}
+          hasErrors={hasErrors}
+          hexRows={hexRows}
+          onOpenCopy={() => setCopyOpen(true)}
+          onToggleExpanded={() => setPreviewExpanded((expanded) => !expanded)}
+          selectedLayout={selectedLayout}
+          selectedRange={selectedRange}
+          t={t}
+        />
+
         <section className="field-panel" aria-label="Fields">
           <div className="panel-title-row">
             <div>
@@ -426,6 +485,9 @@ export function App() {
             <table className="field-table">
               <thead>
                 <tr>
+                  <th className="drag-heading">
+                    <span className="sr-only">{t("table.drag")}</span>
+                  </th>
                   <th>
                     <HeaderLabel label={t("table.offset")} help={t("help.offset")} />
                   </th>
@@ -456,10 +518,10 @@ export function App() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {result.layouts.length === 0 ? (
+              {result.layouts.length === 0 ? (
+                <tbody>
                   <tr>
-                    <td colSpan={10}>
+                    <td colSpan={11}>
                       <div className="table-empty">
                         <span>{t("field.empty")}</span>
                         <button type="button" className="button compact primary" onClick={() => addFieldAt(0)}>
@@ -469,364 +531,40 @@ export function App() {
                       </div>
                     </td>
                   </tr>
-                ) : null}
-                {result.layouts.map((layout) => {
-                  const issues = fieldIssues.get(layout.index) ?? [];
-                  const status = getFieldStatus(issues);
-                  return (
-                    <Fragment key={layout.index}>
-                      <tr
-                        className={layout.index === selectedFieldIndex ? "selected" : ""}
-                        onClick={() => setSelectedFieldIndex(layout.index)}
-                      >
-                        <td>
-                          <input
-                            className="table-input mono offset-cell"
-                            value={layout.field.offset === undefined ? "" : toOffset(layout.field.offset)}
-                            placeholder={toOffset(layout.offset)}
-                            title={t("help.offset")}
-                            onChange={(event) =>
-                              updateFieldNumber(layout.index, "offset", event.target.value)
-                            }
-                            onClick={(event) => event.stopPropagation()}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="table-input field-name"
-                            value={layout.field.name}
-                            onChange={(event) => updateField(layout.index, { name: event.target.value })}
-                            onClick={(event) => event.stopPropagation()}
-                          />
-                        </td>
-                        <td>
-                          <select
-                            className="table-input type-select"
-                            value={layout.field.type}
-                            onChange={(event) =>
-                              updateFieldType(layout.index, event.target.value as FieldType)
-                            }
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {fieldTypeOptions.map((type) => (
-                              <option value={type} key={type}>
-                                {type}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          {usesLength(layout.field.type) ? (
-                            <input
-                              className="table-input mono size-cell"
-                              value={layout.field.length ?? ""}
-                              onChange={(event) =>
-                                updateFieldNumber(layout.index, "length", event.target.value)
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                            />
-                          ) : (
-                            <input
-                              className="table-input mono size-cell"
-                              value={layout.size}
-                              disabled
-                              title={t("help.fixedSize")}
-                            />
-                          )}
-                        </td>
-                        <td>
-                          {usesEndian(layout.field.type) ? (
-                            <select
-                              className="table-input"
-                              value={layout.field.endian ?? "__default"}
-                              onChange={(event) =>
-                                updateField(layout.index, {
-                                  endian:
-                                    event.target.value === "__default"
-                                      ? undefined
-                                      : (event.target.value as Endian)
-                                })
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <option value="__default">
-                                {t("format.defaultEndian", {
-                                  value: template.defaultEndian ?? "big"
-                                })}
-                              </option>
-                            {endianOptions.map((endian) => (
-                              <option value={endian} key={endian}>
-                                {endian === "unknown"
-                                  ? t("format.unknownEndian")
-                                  : t("format.endian", { value: endian })}
-                              </option>
-                            ))}
-                            </select>
-                          ) : layout.field.type === "string" ? (
-                            <select
-                              className="table-input"
-                              value={layout.field.encoding ?? "__default"}
-                              onChange={(event) =>
-                                updateField(layout.index, {
-                                  encoding:
-                                    event.target.value === "__default"
-                                      ? undefined
-                                      : (event.target.value as EncodingName)
-                                })
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <option value="__default">
-                                {t("format.defaultEncoding", {
-                                  value: template.defaultEncoding ?? "utf-8"
-                                })}
-                              </option>
-                            {encodingOptions.map((encoding) => (
-                              <option value={encoding} key={encoding}>
-                                {encoding === "unknown"
-                                  ? t("format.unknownEncoding")
-                                  : t("format.encoding", { value: encoding })}
-                              </option>
-                            ))}
-                            </select>
-                          ) : (
-                            <span className="cell-note">{t("format.notUsed")}</span>
-                          )}
-                        </td>
-                        <td>
-                          {layout.field.type === "string" ? (
-                            <select
-                              className="table-input"
-                              value={layout.field.padding ?? "zero"}
-                              onChange={(event) =>
-                                updateField(layout.index, { padding: event.target.value as PaddingMode })
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              {paddingOptions.map((padding) => (
-                                <option value={padding} key={padding}>
-                                  {t(`padding.${padding}`)}
-                                </option>
-                              ))}
-                            </select>
-                          ) : layout.field.type === "bytes" || layout.field.type === "padding" ? (
-                            <input
-                              className="table-input mono fill-cell"
-                              value={layout.field.fill ?? ""}
-                              placeholder="00"
-                              title={t("help.fillPadding")}
-                              onChange={(event) =>
-                                updateField(layout.index, {
-                                  fill: event.target.value.trim() === "" ? undefined : event.target.value
-                                })
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                            />
-                          ) : (
-                            <span className="cell-note">{t("format.notUsed")}</span>
-                          )}
-                        </td>
-                        <td>
-                          {layout.field.type === "padding" ? (
-                            <span className="cell-note">{t("value.generatedFromFill")}</span>
-                          ) : (
-                            <input
-                              className="table-input value-input"
-                              value={String(layout.field.value ?? "")}
-                              disabled={layout.field.fixed}
-                              onChange={(event) => updateField(layout.index, { value: event.target.value })}
-                              onClick={(event) => event.stopPropagation()}
-                            />
-                          )}
-                        </td>
-                        <td>
-                          <StatusBadge
-                            status={status}
-                            label={
-                              issues.length === 0
-                                ? t("status.ok")
-                                : t(`status.${status}`, { count: issues.length })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="table-input note-cell"
-                            value={layout.field.note ?? ""}
-                            onChange={(event) =>
-                              updateField(layout.index, {
-                                note: event.target.value === "" ? undefined : event.target.value
-                              })
-                            }
-                            onClick={(event) => event.stopPropagation()}
-                          />
-                        </td>
-                        <td className="actions-cell">
-                          <div className="row-actions">
-                            <button
-                              type="button"
-                              className="icon-button"
-                              title={t("row.moveUp")}
-                              aria-label={t("row.moveUp")}
-                              disabled={layout.index === 0}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                moveField(layout.index, -1);
-                              }}
-                            >
-                              <ArrowUp size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-button"
-                              title={t("row.moveDown")}
-                              aria-label={t("row.moveDown")}
-                              disabled={layout.index === template.fields.length - 1}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                moveField(layout.index, 1);
-                              }}
-                            >
-                              <ArrowDown size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-button"
-                              title={t("row.addBelow")}
-                              aria-label={t("row.addBelow")}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                addFieldAt(layout.index + 1);
-                              }}
-                            >
-                              <Plus size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-button"
-                              title={t("row.duplicate")}
-                              aria-label={t("row.duplicate")}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                duplicateField(layout.index);
-                              }}
-                            >
-                              <Copy size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-button danger"
-                              title={t("row.delete")}
-                              aria-label={t("row.delete")}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                deleteField(layout.index);
-                              }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {issues.length > 0 ? (
-                        <tr className="field-issues-row">
-                          <td colSpan={10}>
-                            <div className="field-issues">
-                              {issues.map((issue, index) => (
-                                <div className={`field-issue ${issue.level}`} key={`${issue.code}-${index}`}>
-                                  {issue.level === "error" ? (
-                                    <XCircle size={15} />
-                                  ) : (
-                                    <AlertTriangle size={15} />
-                                  )}
-                                  <span>{translateIssue(locale, issue.code, issue.messageParams)}</span>
-                                </div>
-                              ))}
-                              {layout.field.needsReview ? (
-                                <button
-                                  type="button"
-                                  className="button compact"
-                                  onClick={() => clearNeedsReview(layout.index)}
-                                >
-                                  {t("details.clearReview")}
-                                </button>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="preview-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>{t("panel.preview")}</h2>
-              {selectedLayout ? (
-                <span>
-                  {t("panel.selectedField")}: {selectedLayout.field.name}
-                </span>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className="button compact"
-              disabled={hasErrors}
-              onClick={() => setCopyOpen(true)}
-            >
-              <Clipboard size={14} />
-              {t("copy.open")}
-            </button>
-          </div>
-          {hasErrors ? (
-            <div className="empty-state">
-              <XCircle size={18} />
-              {t("panel.previewBlocked")}
-            </div>
-          ) : (
-            <div className="hex-dump" aria-label="Hex preview">
-              <div className="hex-dump-row hex-dump-header">
-                <span>Offset</span>
-                {Array.from({ length: 16 }, (_, column) => (
-                  <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
-                ))}
-                <span>ASCII</span>
-              </div>
-              {hexRows.length === 0 ? (
-                <div className="empty-state compact">{t("panel.emptyPreview")}</div>
+                </tbody>
               ) : (
-                hexRows.map((row) => (
-                  <div className="hex-dump-row" key={row.offset}>
-                    <span className="hex-offset">{toOffset(row.offset)}</span>
-                    {Array.from({ length: 16 }, (_, column) => {
-                      const byte = row.bytes[column];
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
+                  <SortableContext items={sortableFieldIds} strategy={verticalListSortingStrategy}>
+                    {result.layouts.map((layout) => {
+                      const issues = fieldIssues.get(layout.index) ?? [];
+                      const status = getFieldStatus(issues);
                       return (
-                        <span
-                          key={column}
-                          className={
-                            byte &&
-                            selectedRange &&
-                            byte.index >= selectedRange.start &&
-                            byte.index < selectedRange.end
-                              ? "hex-byte selected-byte"
-                              : "hex-byte"
-                          }
-                        >
-                          {byte?.text ?? ""}
-                        </span>
+                        <SortableFieldRows
+                          addFieldAt={addFieldAt}
+                          clearNeedsReview={clearNeedsReview}
+                          deleteField={deleteField}
+                          duplicateField={duplicateField}
+                          id={fieldSortableId(layout.index)}
+                          issues={issues}
+                          key={fieldSortableId(layout.index)}
+                          layout={layout}
+                          locale={locale}
+                          selected={layout.index === selectedFieldIndex}
+                          setSelectedFieldIndex={setSelectedFieldIndex}
+                          status={status}
+                          t={t}
+                          template={template}
+                          updateField={updateField}
+                          updateFieldNumber={updateFieldNumber}
+                          updateFieldType={updateFieldType}
+                        />
                       );
                     })}
-                    <span className="hex-ascii">{row.ascii}</span>
-                  </div>
-                ))
+                  </SortableContext>
+                </DndContext>
               )}
-            </div>
-          )}
+            </table>
+          </div>
         </section>
 
         {globalIssues.length > 0 ? (
@@ -955,6 +693,384 @@ export function App() {
   );
 }
 
+function HexPreviewPanel({
+  copyDisabled,
+  expanded,
+  hasErrors,
+  hexRows,
+  onOpenCopy,
+  onToggleExpanded,
+  selectedLayout,
+  selectedRange,
+  t
+}: {
+  copyDisabled: boolean;
+  expanded: boolean;
+  hasErrors: boolean;
+  hexRows: HexRow[];
+  onOpenCopy: () => void;
+  onToggleExpanded: () => void;
+  selectedLayout: FieldLayout | undefined;
+  selectedRange: { start: number; end: number } | null;
+  t: Translator;
+}) {
+  const visibleRows = expanded ? hexRows : hexRows.slice(0, 2);
+
+  return (
+    <section className={expanded ? "preview-panel expanded" : "preview-panel compact-preview"}>
+      <div className="panel-heading preview-heading">
+        <div>
+          <h2>{t("panel.preview")}</h2>
+          {selectedLayout ? (
+            <span>
+              {t("panel.selectedField")}: {selectedLayout.field.name}
+            </span>
+          ) : null}
+        </div>
+        <div className="preview-actions">
+          <button type="button" className="button compact" disabled={copyDisabled} onClick={onOpenCopy}>
+            <Clipboard size={14} />
+            {t("copy.open")}
+          </button>
+          <button type="button" className="button compact" onClick={onToggleExpanded}>
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {expanded ? t("preview.collapse") : t("preview.expand")}
+          </button>
+        </div>
+      </div>
+      {hasErrors ? (
+        <div className="empty-state compact">
+          <XCircle size={18} />
+          {t("panel.previewBlocked")}
+        </div>
+      ) : (
+        <div className="hex-dump" aria-label="Hex preview">
+          <div className="hex-dump-row hex-dump-header">
+            <span>Offset</span>
+            {Array.from({ length: 16 }, (_, column) => (
+              <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
+            ))}
+            <span>ASCII</span>
+          </div>
+          {hexRows.length === 0 ? (
+            <div className="empty-state compact">{t("panel.emptyPreview")}</div>
+          ) : (
+            visibleRows.map((row) => (
+              <div className="hex-dump-row" key={row.offset}>
+                <span className="hex-offset">{toOffset(row.offset)}</span>
+                {Array.from({ length: 16 }, (_, column) => {
+                  const byte = row.bytes[column];
+                  return (
+                    <span
+                      key={column}
+                      className={
+                        byte &&
+                        selectedRange &&
+                        byte.index >= selectedRange.start &&
+                        byte.index < selectedRange.end
+                          ? "hex-byte selected-byte"
+                          : "hex-byte"
+                      }
+                    >
+                      {byte?.text ?? ""}
+                    </span>
+                  );
+                })}
+                <span className="hex-ascii">{row.ascii}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SortableFieldRows({
+  addFieldAt,
+  clearNeedsReview,
+  deleteField,
+  duplicateField,
+  id,
+  issues,
+  layout,
+  locale,
+  selected,
+  setSelectedFieldIndex,
+  status,
+  t,
+  template,
+  updateField,
+  updateFieldNumber,
+  updateFieldType
+}: {
+  addFieldAt: (insertIndex: number) => void;
+  clearNeedsReview: (index: number) => void;
+  deleteField: (index: number) => void;
+  duplicateField: (index: number) => void;
+  id: string;
+  issues: ValidationIssue[];
+  layout: FieldLayout;
+  locale: Locale;
+  selected: boolean;
+  setSelectedFieldIndex: (index: number) => void;
+  status: "ok" | "warning" | "error";
+  t: Translator;
+  template: BinaryTemplate;
+  updateField: (index: number, patch: Partial<FieldDefinition>) => void;
+  updateFieldNumber: (index: number, key: "offset" | "length", value: string) => void;
+  updateFieldType: (index: number, type: FieldType) => void;
+}) {
+  const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
+    useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <tbody
+      className={isDragging ? "field-row-group dragging" : "field-row-group"}
+      ref={setNodeRef}
+      style={style}
+    >
+      <tr className={selected ? "selected" : ""} onClick={() => setSelectedFieldIndex(layout.index)}>
+        <td className="drag-cell">
+          <button
+            type="button"
+            className="drag-handle"
+            title={t("row.drag")}
+            aria-label={t("row.drag")}
+            ref={setActivatorNodeRef}
+            onClick={(event) => event.stopPropagation()}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical size={15} />
+          </button>
+        </td>
+        <td>
+          <input
+            className="table-input mono offset-cell"
+            value={layout.field.offset === undefined ? "" : toOffset(layout.field.offset)}
+            placeholder={toOffset(layout.offset)}
+            title={t("help.offset")}
+            onChange={(event) => updateFieldNumber(layout.index, "offset", event.target.value)}
+            onClick={(event) => event.stopPropagation()}
+          />
+        </td>
+        <td>
+          <input
+            className="table-input field-name"
+            value={layout.field.name}
+            onChange={(event) => updateField(layout.index, { name: event.target.value })}
+            onClick={(event) => event.stopPropagation()}
+          />
+        </td>
+        <td>
+          <select
+            className="table-input type-select"
+            value={layout.field.type}
+            onChange={(event) => updateFieldType(layout.index, event.target.value as FieldType)}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {fieldTypeOptions.map((type) => (
+              <option value={type} key={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td>
+          {usesLength(layout.field.type) ? (
+            <input
+              className="table-input mono size-cell"
+              value={layout.field.length ?? ""}
+              onChange={(event) => updateFieldNumber(layout.index, "length", event.target.value)}
+              onClick={(event) => event.stopPropagation()}
+            />
+          ) : (
+            <input className="table-input mono size-cell" value={layout.size} disabled title={t("help.fixedSize")} />
+          )}
+        </td>
+        <td>
+          {usesEndian(layout.field.type) ? (
+            <select
+              className="table-input"
+              value={layout.field.endian ?? "__default"}
+              onChange={(event) =>
+                updateField(layout.index, {
+                  endian: event.target.value === "__default" ? undefined : (event.target.value as Endian)
+                })
+              }
+              onClick={(event) => event.stopPropagation()}
+            >
+              <option value="__default">
+                {t("format.defaultEndian", {
+                  value: template.defaultEndian ?? "big"
+                })}
+              </option>
+              {endianOptions.map((endian) => (
+                <option value={endian} key={endian}>
+                  {endian === "unknown" ? t("format.unknownEndian") : t("format.endian", { value: endian })}
+                </option>
+              ))}
+            </select>
+          ) : layout.field.type === "string" ? (
+            <select
+              className="table-input"
+              value={layout.field.encoding ?? "__default"}
+              onChange={(event) =>
+                updateField(layout.index, {
+                  encoding:
+                    event.target.value === "__default" ? undefined : (event.target.value as EncodingName)
+                })
+              }
+              onClick={(event) => event.stopPropagation()}
+            >
+              <option value="__default">
+                {t("format.defaultEncoding", {
+                  value: template.defaultEncoding ?? "utf-8"
+                })}
+              </option>
+              {encodingOptions.map((encoding) => (
+                <option value={encoding} key={encoding}>
+                  {encoding === "unknown"
+                    ? t("format.unknownEncoding")
+                    : t("format.encoding", { value: encoding })}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="cell-note">{t("format.notUsed")}</span>
+          )}
+        </td>
+        <td>
+          {layout.field.type === "string" ? (
+            <select
+              className="table-input"
+              value={layout.field.padding ?? "zero"}
+              onChange={(event) => updateField(layout.index, { padding: event.target.value as PaddingMode })}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {paddingOptions.map((padding) => (
+                <option value={padding} key={padding}>
+                  {t(`padding.${padding}`)}
+                </option>
+              ))}
+            </select>
+          ) : layout.field.type === "bytes" || layout.field.type === "padding" ? (
+            <input
+              className="table-input mono fill-cell"
+              value={layout.field.fill ?? ""}
+              placeholder="00"
+              title={t("help.fillPadding")}
+              onChange={(event) =>
+                updateField(layout.index, {
+                  fill: event.target.value.trim() === "" ? undefined : event.target.value
+                })
+              }
+              onClick={(event) => event.stopPropagation()}
+            />
+          ) : (
+            <span className="cell-note">{t("format.notUsed")}</span>
+          )}
+        </td>
+        <td>
+          {layout.field.type === "padding" ? (
+            <span className="cell-note">{t("value.generatedFromFill")}</span>
+          ) : (
+            <input
+              className="table-input value-input"
+              value={String(layout.field.value ?? "")}
+              disabled={layout.field.fixed}
+              onChange={(event) => updateField(layout.index, { value: event.target.value })}
+              onClick={(event) => event.stopPropagation()}
+            />
+          )}
+        </td>
+        <td>
+          <StatusBadge
+            status={status}
+            label={issues.length === 0 ? t("status.ok") : t(`status.${status}`, { count: issues.length })}
+          />
+        </td>
+        <td>
+          <input
+            className="table-input note-cell"
+            value={layout.field.note ?? ""}
+            onChange={(event) =>
+              updateField(layout.index, {
+                note: event.target.value === "" ? undefined : event.target.value
+              })
+            }
+            onClick={(event) => event.stopPropagation()}
+          />
+        </td>
+        <td className="actions-cell">
+          <div className="row-actions">
+            <button
+              type="button"
+              className="icon-button"
+              title={t("row.addBelow")}
+              aria-label={t("row.addBelow")}
+              onClick={(event) => {
+                event.stopPropagation();
+                addFieldAt(layout.index + 1);
+              }}
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              title={t("row.duplicate")}
+              aria-label={t("row.duplicate")}
+              onClick={(event) => {
+                event.stopPropagation();
+                duplicateField(layout.index);
+              }}
+            >
+              <Copy size={14} />
+            </button>
+            <button
+              type="button"
+              className="icon-button danger"
+              title={t("row.delete")}
+              aria-label={t("row.delete")}
+              onClick={(event) => {
+                event.stopPropagation();
+                deleteField(layout.index);
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {issues.length > 0 ? (
+        <tr className="field-issues-row">
+          <td colSpan={11}>
+            <div className="field-issues">
+              {issues.map((issue, index) => (
+                <div className={`field-issue ${issue.level}`} key={`${issue.code}-${index}`}>
+                  {issue.level === "error" ? <XCircle size={15} /> : <AlertTriangle size={15} />}
+                  <span>{translateIssue(locale, issue.code, issue.messageParams)}</span>
+                </div>
+              ))}
+              {layout.field.needsReview ? (
+                <button type="button" className="button compact" onClick={() => clearNeedsReview(layout.index)}>
+                  {t("details.clearReview")}
+                </button>
+              ) : null}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </tbody>
+  );
+}
+
 function HeaderLabel({ label, help }: { label: string; help: string }) {
   return (
     <span className="th-label">
@@ -973,7 +1089,7 @@ function ThemeButton({
   onClick
 }: {
   active: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
   label: string;
   onClick: () => void;
 }) {
@@ -1028,6 +1144,15 @@ function usesEndian(type: FieldType): boolean {
 
 function usesLength(type: FieldType): boolean {
   return type === "bytes" || type === "string" || type === "padding";
+}
+
+function fieldSortableId(index: number): string {
+  return `field-${index}`;
+}
+
+function fieldIndexFromSortableId(id: string): number | undefined {
+  const match = /^field-(\d+)$/.exec(id);
+  return match ? Number.parseInt(match[1], 10) : undefined;
 }
 
 function makeUniqueFieldName(fields: FieldDefinition[], base: string): string {

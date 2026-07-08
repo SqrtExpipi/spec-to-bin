@@ -32,6 +32,7 @@ const en = {
   "table.status": "Status",
   "table.note": "Note",
   "table.actions": "Actions",
+  "table.drag": "Reorder",
 
   "status.ok": "OK",
   "status.error": "Error {count}",
@@ -47,6 +48,8 @@ const en = {
   "panel.emptyPreview": "No bytes yet. Add a field to generate a preview.",
   "panel.totalSize": "Total size",
   "panel.selectedField": "Selected field",
+  "preview.expand": "Expand",
+  "preview.collapse": "Collapse",
 
   "json.apply": "Apply JSON",
   "json.copy": "Copy JSON",
@@ -79,6 +82,7 @@ const en = {
   "row.duplicate": "Duplicate",
   "row.moveUp": "Move up",
   "row.moveDown": "Move down",
+  "row.drag": "Drag to reorder",
   "row.delete": "Delete row",
 
   "format.defaultEndian": "Endian: {value} (default)",
@@ -180,6 +184,7 @@ const ja: Record<MessageKey, string> = {
   "table.status": "Status",
   "table.note": "Note",
   "table.actions": "Actions",
+  "table.drag": "並び替え",
 
   "status.ok": "OK",
   "status.error": "エラー {count}",
@@ -195,6 +200,8 @@ const ja: Record<MessageKey, string> = {
   "panel.emptyPreview": "まだbyteがありません。項目を追加するとプレビューされます。",
   "panel.totalSize": "合計サイズ",
   "panel.selectedField": "選択中の項目",
+  "preview.expand": "展開",
+  "preview.collapse": "折りたたむ",
 
   "json.apply": "JSONを反映",
   "json.copy": "JSONをコピー",
@@ -227,6 +234,7 @@ const ja: Record<MessageKey, string> = {
   "row.duplicate": "複製",
   "row.moveUp": "上へ移動",
   "row.moveDown": "下へ移動",
+  "row.drag": "ドラッグして並び替え",
   "row.delete": "行を削除",
 
   "format.defaultEndian": "Endian: {value}（既定）",

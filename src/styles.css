@@ -364,14 +364,33 @@ h2 {
   z-index: 1;
 }
 
+.field-table .drag-heading,
+.field-table .drag-cell {
+  background: var(--panel);
+  box-shadow: 1px 0 0 var(--border);
+  left: 0;
+  min-width: 42px;
+  position: sticky;
+  width: 42px;
+}
+
+.field-table .drag-heading {
+  background: var(--bg-subtle);
+  z-index: 3;
+}
+
+.field-table .drag-cell {
+  z-index: 2;
+}
+
 .field-table .actions-heading,
 .field-table .actions-cell {
   background: var(--panel);
   box-shadow: -1px 0 0 var(--border);
-  min-width: 174px;
+  min-width: 114px;
   position: sticky;
   right: 0;
-  width: 174px;
+  width: 114px;
 }
 
 .field-table .actions-heading {
@@ -395,6 +414,17 @@ h2 {
 .field-table tbody tr:not(.field-issues-row):hover .actions-cell,
 .field-table tbody tr.selected .actions-cell {
   background: var(--accent-soft);
+}
+
+.field-table tbody tr:not(.field-issues-row):hover .drag-cell,
+.field-table tbody tr.selected .drag-cell {
+  background: var(--accent-soft);
+}
+
+.field-row-group.dragging {
+  opacity: 0.72;
+  position: relative;
+  z-index: 4;
 }
 
 .th-label {
@@ -502,6 +532,31 @@ h2 {
   justify-content: flex-end;
 }
 
+.drag-handle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: grab;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+.drag-handle:hover,
+.drag-handle:focus {
+  background: var(--bg-subtle);
+  color: var(--text);
+  outline: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 .field-issues-row td {
   background: color-mix(in srgb, var(--warning-soft) 45%, transparent);
   padding: 0 7px 8px 146px;
@@ -548,6 +603,25 @@ h2 {
   font-size: 12px;
   overflow: auto;
   padding: 10px 12px 12px;
+}
+
+.compact-preview .hex-dump {
+  max-height: 90px;
+}
+
+.preview-panel.expanded .hex-dump {
+  max-height: 260px;
+}
+
+.preview-heading {
+  padding-bottom: 9px;
+  padding-top: 9px;
+}
+
+.preview-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
 }
 
 .hex-dump-row {
