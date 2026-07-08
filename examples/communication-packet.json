@@ -11,16 +11,22 @@
       "value": "0x000F"
     },
     {
-      "name": "count",
+      "name": "sequence",
       "type": "uint16",
       "offset": 2,
-      "value": 99
+      "value": 1
+    },
+    {
+      "name": "flags",
+      "type": "uint8",
+      "offset": 4,
+      "value": "0x00"
     },
     {
       "name": "reserved",
       "type": "bytes",
-      "offset": 4,
-      "length": 4,
+      "offset": 5,
+      "length": 3,
       "fill": "00"
     },
     {
@@ -33,16 +39,16 @@
       "name": "port",
       "type": "uint16",
       "offset": 12,
-      "value": 36300
+      "value": 8080
     },
     {
-      "name": "callSign",
+      "name": "deviceName",
       "type": "string",
       "offset": 14,
       "length": 20,
       "encoding": "shift_jis",
       "padding": "zero",
-      "value": "sikikan1"
+      "value": "DEVICE-01"
     }
   ]
 }

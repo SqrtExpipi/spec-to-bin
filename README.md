@@ -76,13 +76,13 @@ npm run test:run
       "value": "0x000F"
     },
     {
-      "name": "callSign",
+      "name": "deviceName",
       "type": "string",
       "offset": 2,
       "length": 20,
       "encoding": "shift_jis",
       "padding": "zero",
-      "value": "sikikan1"
+      "value": "DEVICE-01"
     }
   ]
 }

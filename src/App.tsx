@@ -1,15 +1,25 @@
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Braces,
-  CheckCircle2,
   Clipboard,
+  Copy,
   Download,
   FileInput,
+  Info,
+  Monitor,
+  Moon,
+  Plus,
+  RotateCcw,
   Save,
   ShieldCheck,
+  Sun,
+  Trash2,
+  X,
   XCircle
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import sampleTemplate from "../examples/communication-packet.json";
 import { aiPrompt } from "./aiPrompt";
 import {
@@ -17,6 +27,7 @@ import {
   createCopyFormats,
   toHexRows,
   toOffset,
+  type BinaryTemplate,
   type EncodingName,
   type Endian,
   type FieldDefinition,
@@ -28,8 +39,18 @@ import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./the
 import { appVersion } from "./version";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
+type ResetMode = "blank" | "sample";
 
 const issueKeyPrefix = "issue.";
+
+const blankTemplate: BinaryTemplate = {
+  formatVersion: "0.1",
+  name: "new_template",
+  defaultEndian: "big",
+  defaultEncoding: "utf-8",
+  fields: []
+};
+
 const fieldTypeOptions: FieldType[] = [
   "uint8",
   "uint16",
@@ -55,6 +76,7 @@ export function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => detectInitialTheme());
   const [toast, setToast] = useState<ToastState>(null);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
@@ -101,6 +123,10 @@ export function App() {
     }
     return map;
   }, [result.issues]);
+  const globalIssues = useMemo(
+    () => result.issues.filter((issue) => issue.fieldIndex === undefined),
+    [result.issues]
+  );
 
   const hasErrors = result.issues.some((issue) => issue.level === "error");
   const selectedLayout = result.layouts.find((layout) => layout.index === selectedFieldIndex);
@@ -110,8 +136,21 @@ export function App() {
   const hexRows = useMemo(() => toHexRows(result.bytes), [result.bytes]);
   const copyFormats = useMemo(() => createCopyFormats(result.bytes), [result.bytes]);
 
+  useEffect(() => {
+    if (hasErrors) {
+      setCopyOpen(false);
+    }
+  }, [hasErrors]);
+
   function showToast(kind: NonNullable<ToastState>["kind"], message: string) {
     setToast({ kind, message });
+  }
+
+  function replaceTemplate(next: unknown) {
+    setTemplateInput(next);
+    setSelectedFieldIndex(0);
+    setCopyOpen(false);
+    setResetOpen(false);
   }
 
   function updateField(index: number, patch: Partial<FieldDefinition>) {
@@ -132,30 +171,100 @@ export function App() {
 
   function updateFieldType(index: number, type: FieldType) {
     const field = template.fields[index];
+    const layout = result.layouts.find((item) => item.index === index);
     const patch: Partial<FieldDefinition> = { type };
-    if (["string", "bytes", "padding"].includes(type) && field.length === undefined) {
-      patch.length = selectedLayout?.index === index && selectedLayout.size > 0 ? selectedLayout.size : 1;
+
+    if (usesLength(type) && field.length === undefined) {
+      patch.length = layout && layout.size > 0 ? layout.size : 1;
     }
-    if (["uint16", "uint32", "int16", "int32"].includes(type) && field.endian === undefined) {
+    if (usesEndian(type) && field.endian === undefined) {
       patch.endian = template.defaultEndian ?? "big";
     }
     if (type === "string" && field.encoding === undefined) {
       patch.encoding = template.defaultEncoding ?? "utf-8";
     }
+    if (type === "string" && field.padding === undefined) {
+      patch.padding = "zero";
+    }
+    if (type === "padding") {
+      patch.value = undefined;
+    }
+
     updateField(index, patch);
   }
 
-  function loadSample() {
-    setTemplateInput(sampleTemplate);
-    setSelectedFieldIndex(0);
-    showToast("success", t("toast.jsonLoaded"));
+  function setFields(fields: FieldDefinition[], nextSelectedIndex: number) {
+    setTemplateInput({
+      ...template,
+      fields
+    });
+    setSelectedFieldIndex(Math.max(0, Math.min(nextSelectedIndex, fields.length - 1)));
+  }
+
+  function addFieldAt(insertIndex: number) {
+    const nextField: FieldDefinition = {
+      name: makeUniqueFieldName(template.fields, "field"),
+      type: "uint8",
+      value: 0
+    };
+    const fields = [
+      ...template.fields.slice(0, insertIndex),
+      nextField,
+      ...template.fields.slice(insertIndex)
+    ];
+    setFields(fields, insertIndex);
+  }
+
+  function moveField(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= template.fields.length) {
+      return;
+    }
+
+    const fields = [...template.fields];
+    const [field] = fields.splice(index, 1);
+    fields.splice(nextIndex, 0, field);
+    setFields(fields, nextIndex);
+  }
+
+  function duplicateField(index: number) {
+    const source = template.fields[index];
+    const copyField: FieldDefinition = {
+      ...source,
+      name: makeUniqueFieldName(template.fields, `${source.name || "field"}_copy`),
+      offset: undefined
+    };
+    const insertIndex = index + 1;
+    const fields = [
+      ...template.fields.slice(0, insertIndex),
+      copyField,
+      ...template.fields.slice(insertIndex)
+    ];
+    setFields(fields, insertIndex);
+  }
+
+  function deleteField(index: number) {
+    const fields = template.fields.filter((_, fieldIndex) => fieldIndex !== index);
+    setFields(fields, index);
+  }
+
+  function clearNeedsReview(index: number) {
+    updateField(index, { needsReview: undefined });
+  }
+
+  function applyReset(mode: ResetMode) {
+    if (mode === "blank") {
+      replaceTemplate({ ...blankTemplate, fields: [] });
+    } else {
+      replaceTemplate(sampleTemplate);
+    }
+    showToast("success", t("toast.templateReset"));
   }
 
   function applyJsonText() {
     try {
       const next = JSON.parse(jsonText) as unknown;
-      setTemplateInput(next);
-      setSelectedFieldIndex(0);
+      replaceTemplate(next);
       showToast("success", t("toast.jsonLoaded"));
     } catch {
       showToast("error", t("toast.invalidJson"));
@@ -201,8 +310,7 @@ export function App() {
       .text()
       .then((text) => {
         const next = JSON.parse(text) as unknown;
-        setTemplateInput(next);
-        setSelectedFieldIndex(0);
+        replaceTemplate(next);
         showToast("success", t("toast.jsonLoaded"));
       })
       .catch(() => showToast("error", t("toast.invalidJson")));
@@ -230,14 +338,21 @@ export function App() {
               <option value="ja">{t("locale.ja")}</option>
             </select>
           </label>
-          <label className="select-label">
-            <span className="sr-only">Theme</span>
-            <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
-              <option value="system">{t("theme.system")}</option>
-              <option value="light">{t("theme.light")}</option>
-              <option value="dark">{t("theme.dark")}</option>
-            </select>
-          </label>
+          <div className="theme-switcher" role="group" aria-label={t("theme.label")}>
+            <ThemeButton
+              active={theme === "system"}
+              label={t("theme.system")}
+              onClick={() => setTheme("system")}
+            >
+              <Monitor size={16} />
+            </ThemeButton>
+            <ThemeButton active={theme === "light"} label={t("theme.light")} onClick={() => setTheme("light")}>
+              <Sun size={16} />
+            </ThemeButton>
+            <ThemeButton active={theme === "dark"} label={t("theme.dark")} onClick={() => setTheme("dark")}>
+              <Moon size={16} />
+            </ThemeButton>
+          </div>
         </div>
       </header>
 
@@ -247,10 +362,12 @@ export function App() {
           type="file"
           accept="application/json,.json"
           hidden
-          onChange={(event) => onJsonFileSelected(event.target.files?.[0])}
+          onChange={(event) => {
+            onJsonFileSelected(event.target.files?.[0]);
+            event.currentTarget.value = "";
+          }}
         />
-        <div className="toolbar-group">
-          <span>{locale === "ja" ? "テンプレート" : "Template"}</span>
+        <div className="toolbar-actions">
           <button type="button" className="button primary" onClick={() => fileInputRef.current?.click()}>
             <FileInput size={16} />
             {t("toolbar.loadJson")}
@@ -263,27 +380,24 @@ export function App() {
             <Braces size={16} />
             {t("toolbar.jsonPanel")}
           </button>
-        </div>
-        <div className="toolbar-group">
-          <span>{locale === "ja" ? "出力" : "Output"}</span>
           <button type="button" className="button strong" onClick={saveBin}>
             <Download size={16} />
             {t("toolbar.saveBin")}
-          </button>
-        </div>
-        <div className="toolbar-group secondary">
-          <span>{locale === "ja" ? "補助" : "Help"}</span>
-          <button type="button" className="button" onClick={loadSample}>
-            {t("toolbar.loadSample")}
           </button>
           <button type="button" className="button" onClick={() => copyText(aiPrompt)}>
             <Clipboard size={16} />
             {t("toolbar.copyPrompt")}
           </button>
         </div>
-        <div className="privacy-note">
-          <ShieldCheck size={15} />
-          {t("toolbar.privacy")}
+        <div className="toolbar-end">
+          <div className="privacy-note">
+            <ShieldCheck size={15} />
+            {t("toolbar.privacy")}
+          </div>
+          <button type="button" className="button subtle-button" onClick={() => setResetOpen(true)}>
+            <RotateCcw size={16} />
+            {t("toolbar.reset")}
+          </button>
         </div>
       </section>
 
@@ -297,8 +411,14 @@ export function App() {
                 encoding {template.defaultEncoding ?? "utf-8"}
               </p>
             </div>
-            <div className="size-pill">
-              {t("panel.totalSize")}: <strong>{result.bytes.length}</strong> bytes
+            <div className="panel-actions">
+              <div className="size-pill">
+                {t("panel.totalSize")}: <strong>{result.bytes.length}</strong> bytes
+              </div>
+              <button type="button" className="button compact" onClick={() => addFieldAt(0)}>
+                <Plus size={15} />
+                {t("field.addAtStart")}
+              </button>
             </div>
           </div>
 
@@ -306,177 +426,336 @@ export function App() {
             <table className="field-table">
               <thead>
                 <tr>
-                  <th>{t("table.offset")}</th>
-                  <th>{t("table.name")}</th>
-                  <th>{t("table.type")}</th>
-                  <th>{t("table.size")}</th>
-                  <th>Format</th>
-                  <th>Fill / Padding</th>
-                  <th>{t("table.value")}</th>
-                  <th>{t("table.status")}</th>
+                  <th>
+                    <HeaderLabel label={t("table.offset")} help={t("help.offset")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.name")} help={t("help.name")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.type")} help={t("help.type")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.size")} help={t("help.size")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.format")} help={t("help.format")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.fillPadding")} help={t("help.fillPadding")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.value")} help={t("help.value")} />
+                  </th>
+                  <th>
+                    <HeaderLabel label={t("table.validation")} help={t("help.validation")} />
+                  </th>
                   <th>{t("table.note")}</th>
+                  <th className="actions-heading">
+                    <HeaderLabel label={t("table.actions")} help={t("help.actions")} />
+                  </th>
                 </tr>
               </thead>
               <tbody>
+                {result.layouts.length === 0 ? (
+                  <tr>
+                    <td colSpan={10}>
+                      <div className="table-empty">
+                        <span>{t("field.empty")}</span>
+                        <button type="button" className="button compact primary" onClick={() => addFieldAt(0)}>
+                          <Plus size={15} />
+                          {t("field.add")}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
                 {result.layouts.map((layout) => {
                   const issues = fieldIssues.get(layout.index) ?? [];
                   const status = getFieldStatus(issues);
                   return (
-                    <tr
-                      key={`${layout.index}-${layout.field.name}`}
-                      className={layout.index === selectedFieldIndex ? "selected" : ""}
-                      onClick={() => setSelectedFieldIndex(layout.index)}
-                    >
-                      <td>
-                        <input
-                          className="table-input mono offset-cell"
-                          value={layout.field.offset === undefined ? "" : toOffset(layout.field.offset)}
-                          placeholder={toOffset(layout.offset)}
-                          onChange={(event) =>
-                            updateFieldNumber(layout.index, "offset", event.target.value)
-                          }
-                          onClick={(event) => event.stopPropagation()}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="table-input field-name"
-                          value={layout.field.name}
-                          onChange={(event) => updateField(layout.index, { name: event.target.value })}
-                          onClick={(event) => event.stopPropagation()}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="table-input type-select"
-                          value={layout.field.type}
-                          onChange={(event) => updateFieldType(layout.index, event.target.value as FieldType)}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {fieldTypeOptions.map((type) => (
-                            <option value={type} key={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        {["string", "bytes", "padding"].includes(layout.field.type) ? (
+                    <Fragment key={layout.index}>
+                      <tr
+                        className={layout.index === selectedFieldIndex ? "selected" : ""}
+                        onClick={() => setSelectedFieldIndex(layout.index)}
+                      >
+                        <td>
                           <input
-                            className="table-input mono size-cell"
-                            value={layout.field.length ?? ""}
+                            className="table-input mono offset-cell"
+                            value={layout.field.offset === undefined ? "" : toOffset(layout.field.offset)}
+                            placeholder={toOffset(layout.offset)}
+                            title={t("help.offset")}
                             onChange={(event) =>
-                              updateFieldNumber(layout.index, "length", event.target.value)
+                              updateFieldNumber(layout.index, "offset", event.target.value)
                             }
                             onClick={(event) => event.stopPropagation()}
                           />
-                        ) : (
-                          <input className="table-input mono size-cell" value={layout.size} disabled />
-                        )}
-                      </td>
-                      <td>
-                        {["uint16", "uint32", "int16", "int32"].includes(layout.field.type) ? (
+                        </td>
+                        <td>
+                          <input
+                            className="table-input field-name"
+                            value={layout.field.name}
+                            onChange={(event) => updateField(layout.index, { name: event.target.value })}
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        </td>
+                        <td>
                           <select
-                            className="table-input"
-                            value={layout.field.endian ?? ""}
+                            className="table-input type-select"
+                            value={layout.field.type}
                             onChange={(event) =>
-                              updateField(layout.index, {
-                                endian: event.target.value === "" ? undefined : (event.target.value as Endian)
-                              })
+                              updateFieldType(layout.index, event.target.value as FieldType)
                             }
                             onClick={(event) => event.stopPropagation()}
                           >
-                            <option value="">{t("details.unset")}</option>
+                            {fieldTypeOptions.map((type) => (
+                              <option value={type} key={type}>
+                                {type}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          {usesLength(layout.field.type) ? (
+                            <input
+                              className="table-input mono size-cell"
+                              value={layout.field.length ?? ""}
+                              onChange={(event) =>
+                                updateFieldNumber(layout.index, "length", event.target.value)
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                            />
+                          ) : (
+                            <input
+                              className="table-input mono size-cell"
+                              value={layout.size}
+                              disabled
+                              title={t("help.fixedSize")}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          {usesEndian(layout.field.type) ? (
+                            <select
+                              className="table-input"
+                              value={layout.field.endian ?? "__default"}
+                              onChange={(event) =>
+                                updateField(layout.index, {
+                                  endian:
+                                    event.target.value === "__default"
+                                      ? undefined
+                                      : (event.target.value as Endian)
+                                })
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <option value="__default">
+                                {t("format.defaultEndian", {
+                                  value: template.defaultEndian ?? "big"
+                                })}
+                              </option>
                             {endianOptions.map((endian) => (
                               <option value={endian} key={endian}>
-                                {endian}
+                                {endian === "unknown"
+                                  ? t("format.unknownEndian")
+                                  : t("format.endian", { value: endian })}
                               </option>
                             ))}
-                          </select>
-                        ) : layout.field.type === "string" ? (
-                          <select
-                            className="table-input"
-                            value={layout.field.encoding ?? ""}
-                            onChange={(event) =>
-                              updateField(layout.index, {
-                                encoding:
-                                  event.target.value === "" ? undefined : (event.target.value as EncodingName)
-                              })
-                            }
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <option value="">{t("details.unset")}</option>
+                            </select>
+                          ) : layout.field.type === "string" ? (
+                            <select
+                              className="table-input"
+                              value={layout.field.encoding ?? "__default"}
+                              onChange={(event) =>
+                                updateField(layout.index, {
+                                  encoding:
+                                    event.target.value === "__default"
+                                      ? undefined
+                                      : (event.target.value as EncodingName)
+                                })
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <option value="__default">
+                                {t("format.defaultEncoding", {
+                                  value: template.defaultEncoding ?? "utf-8"
+                                })}
+                              </option>
                             {encodingOptions.map((encoding) => (
                               <option value={encoding} key={encoding}>
-                                {encoding}
+                                {encoding === "unknown"
+                                  ? t("format.unknownEncoding")
+                                  : t("format.encoding", { value: encoding })}
                               </option>
                             ))}
-                          </select>
-                        ) : (
-                          <span className="muted-dash">-</span>
-                        )}
-                      </td>
-                      <td>
-                        {layout.field.type === "string" ? (
-                          <select
-                            className="table-input"
-                            value={layout.field.padding ?? "zero"}
-                            onChange={(event) =>
-                              updateField(layout.index, { padding: event.target.value as PaddingMode })
+                            </select>
+                          ) : (
+                            <span className="cell-note">{t("format.notUsed")}</span>
+                          )}
+                        </td>
+                        <td>
+                          {layout.field.type === "string" ? (
+                            <select
+                              className="table-input"
+                              value={layout.field.padding ?? "zero"}
+                              onChange={(event) =>
+                                updateField(layout.index, { padding: event.target.value as PaddingMode })
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {paddingOptions.map((padding) => (
+                                <option value={padding} key={padding}>
+                                  {t(`padding.${padding}`)}
+                                </option>
+                              ))}
+                            </select>
+                          ) : layout.field.type === "bytes" || layout.field.type === "padding" ? (
+                            <input
+                              className="table-input mono fill-cell"
+                              value={layout.field.fill ?? ""}
+                              placeholder="00"
+                              title={t("help.fillPadding")}
+                              onChange={(event) =>
+                                updateField(layout.index, {
+                                  fill: event.target.value.trim() === "" ? undefined : event.target.value
+                                })
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                            />
+                          ) : (
+                            <span className="cell-note">{t("format.notUsed")}</span>
+                          )}
+                        </td>
+                        <td>
+                          {layout.field.type === "padding" ? (
+                            <span className="cell-note">{t("value.generatedFromFill")}</span>
+                          ) : (
+                            <input
+                              className="table-input value-input"
+                              value={String(layout.field.value ?? "")}
+                              disabled={layout.field.fixed}
+                              onChange={(event) => updateField(layout.index, { value: event.target.value })}
+                              onClick={(event) => event.stopPropagation()}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          <StatusBadge
+                            status={status}
+                            label={
+                              issues.length === 0
+                                ? t("status.ok")
+                                : t(`status.${status}`, { count: issues.length })
                             }
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {paddingOptions.map((padding) => (
-                              <option value={padding} key={padding}>
-                                {padding}
-                              </option>
-                            ))}
-                          </select>
-                        ) : ["bytes", "padding"].includes(layout.field.type) ? (
+                          />
+                        </td>
+                        <td>
                           <input
-                            className="table-input mono fill-cell"
-                            value={layout.field.fill ?? ""}
-                            placeholder="00"
+                            className="table-input note-cell"
+                            value={layout.field.note ?? ""}
                             onChange={(event) =>
                               updateField(layout.index, {
-                                fill: event.target.value.trim() === "" ? undefined : event.target.value
+                                note: event.target.value === "" ? undefined : event.target.value
                               })
                             }
                             onClick={(event) => event.stopPropagation()}
                           />
-                        ) : (
-                          <span className="muted-dash">-</span>
-                        )}
-                      </td>
-                      <td>
-                        {layout.field.type === "padding" ? (
-                          <span className="muted-dash">-</span>
-                        ) : (
-                          <input
-                            className="table-input value-input"
-                            value={String(layout.field.value ?? "")}
-                            disabled={layout.field.fixed}
-                            onChange={(event) => updateField(layout.index, { value: event.target.value })}
-                            onClick={(event) => event.stopPropagation()}
-                          />
-                        )}
-                      </td>
-                      <td>
-                        <StatusBadge status={status} label={t(`status.${status}`)} />
-                      </td>
-                      <td>
-                        <input
-                          className="table-input note-cell"
-                          value={layout.field.note ?? ""}
-                          onChange={(event) =>
-                            updateField(layout.index, {
-                              note: event.target.value === "" ? undefined : event.target.value
-                            })
-                          }
-                          onClick={(event) => event.stopPropagation()}
-                        />
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="actions-cell">
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title={t("row.moveUp")}
+                              aria-label={t("row.moveUp")}
+                              disabled={layout.index === 0}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                moveField(layout.index, -1);
+                              }}
+                            >
+                              <ArrowUp size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title={t("row.moveDown")}
+                              aria-label={t("row.moveDown")}
+                              disabled={layout.index === template.fields.length - 1}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                moveField(layout.index, 1);
+                              }}
+                            >
+                              <ArrowDown size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title={t("row.addBelow")}
+                              aria-label={t("row.addBelow")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                addFieldAt(layout.index + 1);
+                              }}
+                            >
+                              <Plus size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title={t("row.duplicate")}
+                              aria-label={t("row.duplicate")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                duplicateField(layout.index);
+                              }}
+                            >
+                              <Copy size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button danger"
+                              title={t("row.delete")}
+                              aria-label={t("row.delete")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                deleteField(layout.index);
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {issues.length > 0 ? (
+                        <tr className="field-issues-row">
+                          <td colSpan={10}>
+                            <div className="field-issues">
+                              {issues.map((issue, index) => (
+                                <div className={`field-issue ${issue.level}`} key={`${issue.code}-${index}`}>
+                                  {issue.level === "error" ? (
+                                    <XCircle size={15} />
+                                  ) : (
+                                    <AlertTriangle size={15} />
+                                  )}
+                                  <span>{translateIssue(locale, issue.code, issue.messageParams)}</span>
+                                </div>
+                              ))}
+                              {layout.field.needsReview ? (
+                                <button
+                                  type="button"
+                                  className="button compact"
+                                  onClick={() => clearNeedsReview(layout.index)}
+                                >
+                                  {t("details.clearReview")}
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -484,62 +763,44 @@ export function App() {
           </div>
         </section>
 
-        <aside className="side-panel">
-          <section className="preview-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>{t("panel.preview")}</h2>
-                {selectedLayout ? (
-                  <span>
-                    {t("panel.selectedField")}: {selectedLayout.field.name}
-                  </span>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="button compact"
-                disabled={hasErrors}
-                onClick={() => setCopyOpen((open) => !open)}
-              >
-                <Clipboard size={14} />
-                {t("copy.copy")}
-              </button>
+        <section className="preview-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>{t("panel.preview")}</h2>
+              {selectedLayout ? (
+                <span>
+                  {t("panel.selectedField")}: {selectedLayout.field.name}
+                </span>
+              ) : null}
             </div>
-            {copyOpen && !hasErrors ? (
-              <div className="copy-popover">
-                <div className="copy-popover-heading">
-                  <strong>{t("copy.title")}</strong>
-                  <span>{t("copy.ready")}</span>
-                </div>
-                {copyFormats.map((format) => (
-                  <div className="copy-popover-row" key={format.id}>
-                    <div>
-                      <strong>{format.label}</strong>
-                      {format.language ? <span>{format.language}</span> : null}
-                    </div>
-                    <code>{format.value}</code>
-                    <button type="button" className="button compact" onClick={() => copyText(format.value)}>
-                      {t("copy.copy")}
-                    </button>
-                  </div>
+            <button
+              type="button"
+              className="button compact"
+              disabled={hasErrors}
+              onClick={() => setCopyOpen(true)}
+            >
+              <Clipboard size={14} />
+              {t("copy.open")}
+            </button>
+          </div>
+          {hasErrors ? (
+            <div className="empty-state">
+              <XCircle size={18} />
+              {t("panel.previewBlocked")}
+            </div>
+          ) : (
+            <div className="hex-dump" aria-label="Hex preview">
+              <div className="hex-dump-row hex-dump-header">
+                <span>Offset</span>
+                {Array.from({ length: 16 }, (_, column) => (
+                  <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
                 ))}
+                <span>ASCII</span>
               </div>
-            ) : null}
-            {hasErrors ? (
-              <div className="empty-state">
-                <XCircle size={18} />
-                {t("panel.previewBlocked")}
-              </div>
-            ) : (
-              <div className="hex-dump" aria-label="Hex preview">
-                <div className="hex-dump-row hex-dump-header">
-                  <span>Offset</span>
-                  {Array.from({ length: 16 }, (_, column) => (
-                    <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
-                  ))}
-                  <span>ASCII</span>
-                </div>
-                {hexRows.map((row) => (
+              {hexRows.length === 0 ? (
+                <div className="empty-state compact">{t("panel.emptyPreview")}</div>
+              ) : (
+                hexRows.map((row) => (
                   <div className="hex-dump-row" key={row.offset}>
                     <span className="hex-offset">{toOffset(row.offset)}</span>
                     {Array.from({ length: 16 }, (_, column) => {
@@ -562,51 +823,40 @@ export function App() {
                     })}
                     <span className="hex-ascii">{row.ascii}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                ))
+              )}
+            </div>
+          )}
+        </section>
 
+        {globalIssues.length > 0 ? (
           <section className="issues-panel">
             <div className="panel-heading">
               <h2>{t("panel.issues")}</h2>
-              <span>{result.issues.length}</span>
+              <span>{globalIssues.length}</span>
             </div>
-            {result.issues.length === 0 ? (
-              <div className="empty-state positive">
-                <CheckCircle2 size={18} />
-                {t("panel.noIssues")}
-              </div>
-            ) : (
-              <div className="issue-list">
-                {result.issues.map((issue, index) => (
-                  <button
-                    type="button"
-                    className={`issue-item ${issue.level}`}
-                    key={`${issue.code}-${index}`}
-                    onClick={() => {
-                      if (issue.fieldIndex !== undefined) {
-                        setSelectedFieldIndex(issue.fieldIndex);
-                      }
-                    }}
-                  >
-                    {issue.level === "error" ? <XCircle size={16} /> : <AlertTriangle size={16} />}
-                    <span>
-                      <strong>{issue.fieldName ?? "template"}</strong>
-                      {translateIssue(locale, issue.code, issue.messageParams)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="issue-list">
+              {globalIssues.map((issue, index) => (
+                <div className={`issue-item ${issue.level}`} key={`${issue.code}-${index}`}>
+                  {issue.level === "error" ? <XCircle size={16} /> : <AlertTriangle size={16} />}
+                  <span>
+                    <strong>{issue.fieldName ?? "template"}</strong>
+                    {translateIssue(locale, issue.code, issue.messageParams)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </section>
-        </aside>
+        ) : null}
       </main>
 
       {jsonOpen ? (
         <section className="json-panel" aria-label="JSON definition">
           <div className="panel-heading">
-            <h2>{t("panel.json")}</h2>
+            <div>
+              <h2>{t("panel.json")}</h2>
+              <span>{t("panel.jsonHint")}</span>
+            </div>
             <div className="json-actions">
               <button type="button" className="button compact" onClick={() => copyText(jsonText)}>
                 {t("json.copy")}
@@ -620,12 +870,134 @@ export function App() {
         </section>
       ) : null}
 
+      {copyOpen && !hasErrors ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setCopyOpen(false)}>
+          <section
+            className="modal-dialog copy-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="copy-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <div>
+                <h2 id="copy-dialog-title">{t("copy.title")}</h2>
+                <p>{t("copy.ready")}</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                title={t("copy.close")}
+                aria-label={t("copy.close")}
+                onClick={() => setCopyOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="copy-list">
+              {copyFormats.map((format) => (
+                <div className="copy-row" key={format.id}>
+                  <div>
+                    <strong>{format.label}</strong>
+                    {format.language ? <span>{format.language}</span> : null}
+                  </div>
+                  <code>{format.value}</code>
+                  <button type="button" className="button compact" onClick={() => copyText(format.value)}>
+                    {t("copy.copy")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {resetOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setResetOpen(false)}>
+          <section
+            className="modal-dialog reset-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <div>
+                <h2 id="reset-dialog-title">{t("reset.title")}</h2>
+                <p>{t("reset.description")}</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                title={t("reset.cancel")}
+                aria-label={t("reset.cancel")}
+                onClick={() => setResetOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="reset-options">
+              <button type="button" className="reset-option" onClick={() => applyReset("blank")}>
+                <strong>{t("reset.blank")}</strong>
+                <span>{t("reset.blankDescription")}</span>
+              </button>
+              <button type="button" className="reset-option" onClick={() => applyReset("sample")}>
+                <strong>{t("reset.sample")}</strong>
+                <span>{t("reset.sampleDescription")}</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {toast ? <div className={`toast ${toast.kind}`}>{toast.message}</div> : null}
     </div>
   );
 }
 
-function StatusBadge({ status, label }: { status: "ok" | "warning" | "error"; label: string }) {
+function HeaderLabel({ label, help }: { label: string; help: string }) {
+  return (
+    <span className="th-label">
+      {label}
+      <span className="info-tip" title={help} aria-label={help}>
+        <Info size={13} />
+      </span>
+    </span>
+  );
+}
+
+function ThemeButton({
+  active,
+  children,
+  label,
+  onClick
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={active ? "icon-button theme-button active" : "icon-button theme-button"}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StatusBadge({
+  status,
+  label
+}: {
+  status: "ok" | "warning" | "error";
+  label: string;
+}) {
   return <span className={`status-badge ${status}`}>{label}</span>;
 }
 
@@ -648,6 +1020,30 @@ function translateIssue(
 ): string {
   const key = `${issueKeyPrefix}${code}` as Parameters<typeof translate>[1];
   return translate(locale, key, params);
+}
+
+function usesEndian(type: FieldType): boolean {
+  return type === "uint16" || type === "uint32" || type === "int16" || type === "int32";
+}
+
+function usesLength(type: FieldType): boolean {
+  return type === "bytes" || type === "string" || type === "padding";
+}
+
+function makeUniqueFieldName(fields: FieldDefinition[], base: string): string {
+  const existing = new Set(fields.map((field) => field.name));
+  if (!existing.has(base)) {
+    return base;
+  }
+
+  for (let suffix = 2; suffix < 10000; suffix += 1) {
+    const candidate = `${base}${suffix}`;
+    if (!existing.has(candidate)) {
+      return candidate;
+    }
+  }
+
+  return `${base}_${Date.now()}`;
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
