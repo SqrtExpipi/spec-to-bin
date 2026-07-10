@@ -1,4 +1,4 @@
-import { decodeString, encodeString, padFixedStringBytes } from "./encodeString";
+import { encodeString, padFixedStringBytes } from "./encodeString";
 
 describe("encodeString", () => {
   it("encodes ASCII", () => {
@@ -19,25 +19,6 @@ describe("encodeString", () => {
 
   it("rejects characters that Shift_JIS replaces", () => {
     expect(() => encodeString("😀", "shift_jis")).toThrow();
-  });
-});
-
-describe("decodeString", () => {
-  it.each(["ascii", "utf-8", "shift_jis"] as const)("round-trips %s text", (encoding) => {
-    const value = encoding === "ascii" ? "ABC" : "通信";
-    expect(decodeString(encodeString(value, encoding), encoding)).toBe(value);
-  });
-
-  it("rejects an invalid ASCII byte", () => {
-    expect(() => decodeString(new Uint8Array([0x80]), "ascii")).toThrow();
-  });
-
-  it("rejects an incomplete UTF-8 sequence", () => {
-    expect(() => decodeString(new Uint8Array([0xe9, 0x80]), "utf-8")).toThrow();
-  });
-
-  it("rejects an incomplete Shift_JIS sequence", () => {
-    expect(() => decodeString(new Uint8Array([0x92]), "shift_jis")).toThrow();
   });
 });
 

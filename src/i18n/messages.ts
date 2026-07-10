@@ -54,8 +54,7 @@ const en = {
   "preview.expand": "Expand",
   "preview.collapse": "Collapse",
   "preview.truncated": "Showing the first {shown} of {total}.",
-  "preview.decodedText": "Decoded text ({encoding})",
-  "preview.emptyText": "(empty)",
+  "preview.asciiHelp": "Shows printable ASCII bytes from the generated data; other bytes appear as '.'.",
 
   "json.apply": "Apply JSON",
   "json.copy": "Copy JSON",
@@ -229,8 +228,7 @@ const ja: Record<MessageKey, string> = {
   "preview.expand": "展開",
   "preview.collapse": "折りたたむ",
   "preview.truncated": "先頭 {shown} を表示しています（全体 {total}）。",
-  "preview.decodedText": "復号テキスト（{encoding}）",
-  "preview.emptyText": "（空文字列）",
+  "preview.asciiHelp": "生成byteのうち印字可能なASCII文字だけを表示し、それ以外は '.' で表示します。",
 
   "json.apply": "JSONを反映",
   "json.copy": "JSONをコピー",

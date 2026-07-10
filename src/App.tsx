@@ -39,8 +39,6 @@ import { SortableFieldRows } from "./components/SortableFieldRows";
 import {
   buildBinary,
   createCopyFormats,
-  decodeString,
-  encodeString,
   templateLimits,
   toHexRows,
   type BinaryTemplate,
@@ -63,7 +61,6 @@ type DraftFieldErrorKind = "offset" | "length";
 const issueKeyPrefix = "issue.";
 const maxHistoryEntries = 50;
 const maxHistorySnapshotChars = 4 * 1024 * 1024;
-const maxDecodedPreviewCharacters = 160;
 
 const blankTemplate: BinaryTemplate = {
   formatVersion: "0.1",
@@ -167,34 +164,6 @@ export function App() {
   const selectedRange = selectedLayout
     ? { start: selectedLayout.offset, end: selectedLayout.offset + selectedLayout.size }
     : null;
-  const decodedStringPreview = useMemo(() => {
-    if (hasErrors || !selectedLayout || selectedLayout.field.type !== "string") {
-      return undefined;
-    }
-
-    const encoding = selectedLayout.field.encoding ?? template.defaultEncoding ?? "unknown";
-    if (encoding === "unknown") {
-      return undefined;
-    }
-
-    const source = String(selectedLayout.field.value ?? "");
-    const prefix = takeTextPrefix(source, maxDecodedPreviewCharacters);
-
-    try {
-      const encodedPrefix = encodeString(prefix.value, encoding);
-      const generatedPrefix = result.bytes.subarray(
-        selectedLayout.offset,
-        selectedLayout.offset + encodedPrefix.length
-      );
-      return {
-        encoding,
-        text: decodeString(generatedPrefix, encoding),
-        truncated: prefix.truncated
-      };
-    } catch {
-      return undefined;
-    }
-  }, [hasErrors, result.bytes, selectedLayout, template.defaultEncoding]);
   const previewTruncated = result.bytes.length > templateLimits.maxPreviewBytes;
   const previewBytes = useMemo(
     () => result.bytes.subarray(0, templateLimits.maxPreviewBytes),
@@ -693,7 +662,6 @@ export function App() {
           expanded={previewExpanded}
           hasErrors={hasErrors}
           hexRows={hexRows}
-          decodedStringPreview={decodedStringPreview}
           onOpenCopy={() => setCopyOpen(true)}
           onToggleExpanded={() => setPreviewExpanded((expanded) => !expanded)}
           previewNotice={
@@ -1075,24 +1043,6 @@ function serializeTemplate(value: unknown): string {
   } catch {
     return "null";
   }
-}
-
-function takeTextPrefix(value: string, maxCharacters: number): { value: string; truncated: boolean } {
-  let end = 0;
-  let count = 0;
-
-  for (const character of value) {
-    if (count >= maxCharacters) {
-      break;
-    }
-    end += character.length;
-    count += 1;
-  }
-
-  return {
-    value: value.slice(0, end),
-    truncated: end < value.length
-  };
 }
 
 function limitHistory(

@@ -709,31 +709,6 @@ h2 {
   gap: 8px;
 }
 
-.decoded-preview {
-  align-items: baseline;
-  background: var(--bg-subtle);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-  padding: 6px 14px;
-}
-
-.decoded-preview span {
-  color: var(--muted);
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.decoded-preview code {
-  font-family: var(--mono);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .hex-dump-row {
   align-items: center;
   display: grid;

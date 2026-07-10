@@ -1,11 +1,10 @@
 import { ChevronDown, ChevronUp, Clipboard, XCircle } from "lucide-react";
-import { toOffset, type EncodingName, type FieldLayout, type HexRow } from "../core";
+import { toOffset, type FieldLayout, type HexRow } from "../core";
 import type { Translator } from "../uiTypes";
 
 export function HexPreviewPanel({
   copyDisabled,
   copyDisabledReason,
-  decodedStringPreview,
   expanded,
   hasErrors,
   hexRows,
@@ -18,7 +17,6 @@ export function HexPreviewPanel({
 }: {
   copyDisabled: boolean;
   copyDisabledReason?: string;
-  decodedStringPreview?: { encoding: EncodingName; text: string; truncated: boolean };
   expanded: boolean;
   hasErrors: boolean;
   hexRows: HexRow[];
@@ -59,15 +57,6 @@ export function HexPreviewPanel({
           </button>
         </div>
       </div>
-      {!hasErrors && decodedStringPreview ? (
-        <div className="decoded-preview">
-          <span>{t("preview.decodedText", { encoding: decodedStringPreview.encoding })}</span>
-          <code>
-            {decodedStringPreview.text || t("preview.emptyText")}
-            {decodedStringPreview.truncated ? "..." : ""}
-          </code>
-        </div>
-      ) : null}
       {hasErrors ? (
         <div className="empty-state compact">
           <XCircle size={18} />
@@ -82,7 +71,7 @@ export function HexPreviewPanel({
               {Array.from({ length: 16 }, (_, column) => (
                 <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
               ))}
-              <span>ASCII</span>
+              <span title={t("preview.asciiHelp")}>ASCII</span>
             </div>
             {hexRows.length === 0 ? (
               <div className="empty-state compact">{t("panel.emptyPreview")}</div>
