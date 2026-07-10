@@ -10,6 +10,28 @@ describe("App editor workflow", () => {
     localStorage.setItem("spec-to-bin.locale", "ja");
   });
 
+  function applyTemplate(container: HTMLElement, template: unknown) {
+    fireEvent.click(screen.getByRole("button", { name: "JSONを直接編集" }));
+    const textarea = container.querySelector<HTMLTextAreaElement>(".json-panel textarea");
+    fireEvent.change(textarea as HTMLTextAreaElement, {
+      target: { value: JSON.stringify(template) }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "JSONを反映" }));
+  }
+
+  it("starts with a blank template and keeps samples behind Reset", () => {
+    const { container } = render(<App />);
+
+    expect(screen.getByLabelText("テンプレート名")).toHaveValue("new_template");
+    expect(container.querySelectorAll(".field-row-group")).toHaveLength(0);
+    expect(screen.getByText("まだbyteがありません。項目を追加するとプレビューされます。")).toBeInTheDocument();
+    expect(screen.queryByText("ローカル処理。アップロードなし。テレメトリなし。")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "リセット" }));
+    fireEvent.click(screen.getByText("サンプルを読み込む").closest("button") as HTMLButtonElement);
+    expect(screen.getByLabelText("テンプレート名")).toHaveValue("basic_fields");
+  });
+
   it("places the compact Hex preview before the field table", () => {
     const { container } = render(<App />);
     const preview = container.querySelector(".preview-panel");
@@ -32,12 +54,13 @@ describe("App editor workflow", () => {
     await user.type(nameInput, "X");
     expect(screen.getByText("未保存")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "元に戻す" }));
-    expect(nameInput).toHaveValue("sample_packet");
+    expect(nameInput).toHaveValue("new_template");
     expect(screen.queryByText("未保存")).not.toBeInTheDocument();
   });
 
   it("accepts bare hexadecimal values containing A-F", () => {
     const { container } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "先頭に追加" }));
     const valueInput = container.querySelector<HTMLInputElement>(".value-input");
     expect(valueInput).not.toBeNull();
     fireEvent.change(valueInput as HTMLInputElement, { target: { value: "F" } });
@@ -48,6 +71,8 @@ describe("App editor workflow", () => {
   it("offers 64-bit integer types and shows their fixed size", () => {
     localStorage.setItem("spec-to-bin.locale", "en");
     const { container } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Add first row" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add row below" }));
     const typeSelects = container.querySelectorAll<HTMLSelectElement>(".type-select");
     const typeSelect = typeSelects[0];
     expect(typeSelect).not.toBeNull();
@@ -63,7 +88,10 @@ describe("App editor workflow", () => {
     fireEvent.change(typeSelects[1], { target: { value: "uint64" } });
     fireEvent.click(screen.getByRole("button", { name: "Edit JSON" }));
     const jsonText = container.querySelector<HTMLTextAreaElement>(".json-panel textarea")?.value ?? "";
-    expect(JSON.parse(jsonText).fields[1].value).toBe("1");
+    expect(JSON.parse(jsonText).fields.map((field: { value: unknown }) => field.value)).toEqual([
+      "0",
+      "0"
+    ]);
   });
 
   it("fills the calculated offset when adding the first row", async () => {
@@ -77,6 +105,7 @@ describe("App editor workflow", () => {
   it("keeps offset text stable while editing and formats it on blur", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "先頭に追加" }));
     const offsetInput = container.querySelector<HTMLInputElement>(".offset-cell");
     expect(offsetInput).not.toBeNull();
 
@@ -91,6 +120,7 @@ describe("App editor workflow", () => {
   it("retains invalid offset text, blocks export, and cancels it with Escape", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "先頭に追加" }));
     const offsetInput = container.querySelector<HTMLInputElement>(".offset-cell");
     expect(offsetInput).not.toBeNull();
 
@@ -112,21 +142,25 @@ describe("App editor workflow", () => {
     fireEvent.change(versionInput, { target: { value: "0.2" } });
 
     expect(versionInput).toHaveValue("0.2");
-    expect(container.querySelector(".size-pill")).toHaveTextContent("34 bytes");
+    expect(container.querySelector(".size-pill")).toHaveTextContent("0 bytes");
     expect(screen.getByRole("button", { name: "BINファイルを保存" })).toBeDisabled();
   });
 
   it("removes properties that do not apply after a type change", () => {
     const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "property_cleanup",
+      fields: [{ name: "rawBytes", type: "bytes", length: 2, fill: "00" }]
+    });
     const typeSelects = container.querySelectorAll<HTMLSelectElement>(".type-select");
-    fireEvent.change(typeSelects[3], { target: { value: "uint8" } });
-    fireEvent.click(screen.getByRole("button", { name: "JSONを直接編集" }));
+    fireEvent.change(typeSelects[0], { target: { value: "uint8" } });
 
     const jsonText = container.querySelector<HTMLTextAreaElement>(".json-panel textarea")?.value ?? "";
     const json = JSON.parse(jsonText);
-    expect(json.fields[3].type).toBe("uint8");
-    expect(json.fields[3]).not.toHaveProperty("length");
-    expect(json.fields[3]).not.toHaveProperty("fill");
+    expect(json.fields[0].type).toBe("uint8");
+    expect(json.fields[0]).not.toHaveProperty("length");
+    expect(json.fields[0]).not.toHaveProperty("fill");
   });
 
   it("limits preview rendering and copy text for large valid binaries", () => {
@@ -151,7 +185,35 @@ describe("App editor workflow", () => {
   });
 
   it("shows byte usage for fixed-length strings", () => {
-    render(<App />);
-    expect(screen.getByText("9 / 20 bytes")).toBeInTheDocument();
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "fixed_text",
+      defaultEncoding: "utf-8",
+      fields: [{ name: "text", type: "string", length: 8, padding: "zero", value: "ABC" }]
+    });
+    expect(screen.getByText("3 / 8 bytes")).toBeInTheDocument();
+  });
+
+  it("decodes the selected Shift_JIS field from generated bytes", () => {
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "shift_jis_text",
+      defaultEncoding: "shift_jis",
+      fields: [
+        {
+          name: "shiftJisText",
+          type: "string",
+          length: 8,
+          padding: "zero",
+          value: "通信"
+        }
+      ]
+    });
+
+    expect(screen.getByText("復号テキスト（shift_jis）")).toBeInTheDocument();
+    expect(container.querySelector(".decoded-preview code")).toHaveTextContent("通信");
+    expect(container.querySelector(".hex-ascii")).toHaveTextContent("...M....");
   });
 });

@@ -42,6 +42,40 @@ export function encodeString(value: string, encoding: EncodingName): Uint8Array 
   return new Uint8Array(converted as number[]);
 }
 
+export function decodeString(bytes: Uint8Array, encoding: EncodingName): string {
+  if (encoding === "unknown") {
+    throw new Error("Unknown encoding cannot be decoded.");
+  }
+
+  if (encoding === "ascii") {
+    if (bytes.some((value) => value > 0x7f)) {
+      throw new Error("Non-ASCII byte found.");
+    }
+    return Array.from(bytes, (value) => String.fromCharCode(value)).join("");
+  }
+
+  if (encoding === "utf-8") {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  }
+
+  const unicodeCodes = Encoding.convert(Array.from(bytes), {
+    from: "SJIS",
+    to: "UNICODE",
+    type: "array"
+  });
+  const decoded = Encoding.codeToString(unicodeCodes as number[]);
+  const roundTrip = encodeString(decoded, "shift_jis");
+
+  if (
+    roundTrip.length !== bytes.length ||
+    roundTrip.some((value, index) => value !== bytes[index])
+  ) {
+    throw new Error("Invalid Shift_JIS byte sequence.");
+  }
+
+  return decoded;
+}
+
 export function padFixedStringBytes(
   bytes: Uint8Array,
   length: number,

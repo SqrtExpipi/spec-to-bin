@@ -7,7 +7,7 @@
 ```json
 {
   "formatVersion": "0.1",
-  "name": "sample_packet",
+  "name": "basic_fields",
   "defaultEndian": "big",
   "defaultEncoding": "utf-8",
   "fields": []

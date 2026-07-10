@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Redo2,
   Save,
-  ShieldCheck,
   Sun,
   Undo2,
   X,
@@ -33,13 +32,15 @@ import {
   verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import sampleTemplate from "../examples/communication-packet.json";
-import { aiPrompt } from "./aiPrompt";
+import sampleTemplate from "../examples/basic-fields.json";
+import { getAiPrompt } from "./aiPrompt";
 import { HexPreviewPanel } from "./components/HexPreviewPanel";
 import { SortableFieldRows } from "./components/SortableFieldRows";
 import {
   buildBinary,
   createCopyFormats,
+  decodeString,
+  encodeString,
   templateLimits,
   toHexRows,
   type BinaryTemplate,
@@ -62,6 +63,7 @@ type DraftFieldErrorKind = "offset" | "length";
 const issueKeyPrefix = "issue.";
 const maxHistoryEntries = 50;
 const maxHistorySnapshotChars = 4 * 1024 * 1024;
+const maxDecodedPreviewCharacters = 160;
 
 const blankTemplate: BinaryTemplate = {
   formatVersion: "0.1",
@@ -72,15 +74,15 @@ const blankTemplate: BinaryTemplate = {
 };
 
 export function App() {
-  const [templateInput, setTemplateInputState] = useState<unknown>(sampleTemplate);
-  const [fieldIds, setFieldIds] = useState<string[]>(() => createFieldIds(sampleTemplate.fields.length));
+  const [templateInput, setTemplateInputState] = useState<unknown>(blankTemplate);
+  const [fieldIds, setFieldIds] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [future, setFuture] = useState<HistoryEntry[]>([]);
   const [draftFieldErrors, setDraftFieldErrors] = useState<Record<string, string>>({});
-  const [savedSnapshot, setSavedSnapshot] = useState(() => serializeTemplate(sampleTemplate));
+  const [savedSnapshot, setSavedSnapshot] = useState(() => serializeTemplate(blankTemplate));
   const [selectedFieldIndex, setSelectedFieldIndex] = useState(0);
   const [jsonOpen, setJsonOpen] = useState(false);
-  const [jsonText, setJsonText] = useState(() => JSON.stringify(sampleTemplate, null, 2));
+  const [jsonText, setJsonText] = useState(() => JSON.stringify(blankTemplate, null, 2));
   const [locale, setLocale] = useState<Locale>(() => detectInitialLocale());
   const [theme, setTheme] = useState<ThemeMode>(() => detectInitialTheme());
   const [toast, setToast] = useState<ToastState>(null);
@@ -165,6 +167,34 @@ export function App() {
   const selectedRange = selectedLayout
     ? { start: selectedLayout.offset, end: selectedLayout.offset + selectedLayout.size }
     : null;
+  const decodedStringPreview = useMemo(() => {
+    if (hasErrors || !selectedLayout || selectedLayout.field.type !== "string") {
+      return undefined;
+    }
+
+    const encoding = selectedLayout.field.encoding ?? template.defaultEncoding ?? "unknown";
+    if (encoding === "unknown") {
+      return undefined;
+    }
+
+    const source = String(selectedLayout.field.value ?? "");
+    const prefix = takeTextPrefix(source, maxDecodedPreviewCharacters);
+
+    try {
+      const encodedPrefix = encodeString(prefix.value, encoding);
+      const generatedPrefix = result.bytes.subarray(
+        selectedLayout.offset,
+        selectedLayout.offset + encodedPrefix.length
+      );
+      return {
+        encoding,
+        text: decodeString(generatedPrefix, encoding),
+        truncated: prefix.truncated
+      };
+    } catch {
+      return undefined;
+    }
+  }, [hasErrors, result.bytes, selectedLayout, template.defaultEncoding]);
   const previewTruncated = result.bytes.length > templateLimits.maxPreviewBytes;
   const previewBytes = useMemo(
     () => result.bytes.subarray(0, templateLimits.maxPreviewBytes),
@@ -619,7 +649,7 @@ export function App() {
             <Download size={16} />
             {t("toolbar.saveBin")}
           </button>
-          <button type="button" className="button" onClick={() => copyText(aiPrompt)}>
+          <button type="button" className="button" onClick={() => copyText(getAiPrompt(locale))}>
             <Clipboard size={16} />
             {t("toolbar.copyPrompt")}
           </button>
@@ -645,10 +675,6 @@ export function App() {
           >
             <Redo2 size={16} />
           </button>
-          <div className="privacy-note">
-            <ShieldCheck size={15} />
-            {t("toolbar.privacy")}
-          </div>
           <button type="button" className="button subtle-button" onClick={() => setResetOpen(true)}>
             <RotateCcw size={16} />
             {t("toolbar.reset")}
@@ -667,6 +693,7 @@ export function App() {
           expanded={previewExpanded}
           hasErrors={hasErrors}
           hexRows={hexRows}
+          decodedStringPreview={decodedStringPreview}
           onOpenCopy={() => setCopyOpen(true)}
           onToggleExpanded={() => setPreviewExpanded((expanded) => !expanded)}
           previewNotice={
@@ -1048,6 +1075,24 @@ function serializeTemplate(value: unknown): string {
   } catch {
     return "null";
   }
+}
+
+function takeTextPrefix(value: string, maxCharacters: number): { value: string; truncated: boolean } {
+  let end = 0;
+  let count = 0;
+
+  for (const character of value) {
+    if (count >= maxCharacters) {
+      break;
+    }
+    end += character.length;
+    count += 1;
+  }
+
+  return {
+    value: value.slice(0, end),
+    truncated: end < value.length
+  };
 }
 
 function limitHistory(

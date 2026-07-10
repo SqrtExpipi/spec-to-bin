@@ -1,5 +1,8 @@
-import communicationPacket from "../../examples/communication-packet.json";
-import fixedLengthString from "../../examples/fixed-length-string-shift-jis.json";
+import basicFields from "../../examples/basic-fields.json";
+import bytesAndPadding from "../../examples/bytes-and-padding.json";
+import fixedLengthStrings from "../../examples/fixed-length-strings.json";
+import integerEndianness from "../../examples/integer-endianness.json";
+import networkFields from "../../examples/network-fields.json";
 import { buildBinary } from "./buildBinary";
 import { formatHex } from "./formatHex";
 import { parseBinaryTemplate } from "./parseTemplate";
@@ -7,21 +10,31 @@ import { validateTemplate } from "./validateTemplate";
 import type { BinaryTemplate } from "./types";
 
 describe("buildBinary", () => {
-  it("builds the communication packet sample", () => {
-    const result = buildBinary(communicationPacket as BinaryTemplate);
+  it.each([
+    ["basic fields", basicFields],
+    ["bytes and padding", bytesAndPadding],
+    ["fixed-length strings", fixedLengthStrings],
+    ["integer endianness", integerEndianness],
+    ["network fields", networkFields]
+  ])("builds the public %s sample", (_name, template) => {
+    expect(buildBinary(template as BinaryTemplate).issues).toEqual([]);
+  });
+
+  it("builds the generic basic-fields sample", () => {
+    const result = buildBinary(basicFields as BinaryTemplate);
 
     expect(result.issues).toEqual([]);
     expect(formatHex(result.bytes)).toBe(
-      "00 0F 00 01 00 00 00 00 C0 A8 00 0A 1F 90 44 45 56 49 43 45 2D 30 31 00 00 00 00 00 00 00 00 00 00 00"
+      "12 34 FF DE AD BE EF 00 00 00 53 41 4D 50 4C 45 00 00"
     );
   });
 
   it("encodes Shift_JIS fixed-length strings by byte length", () => {
-    const result = buildBinary(fixedLengthString as BinaryTemplate);
+    const result = buildBinary(fixedLengthStrings as BinaryTemplate);
 
     expect(result.issues).toEqual([]);
-    expect(formatHex(result.bytes.slice(0, 20))).toBe(
-      "92 CA 90 4D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+    expect(formatHex(result.bytes.slice(20, 32))).toBe(
+      "92 CA 90 4D 20 20 20 20 20 20 20 20"
     );
   });
 

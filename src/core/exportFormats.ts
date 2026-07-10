@@ -19,16 +19,15 @@ export function createCopyFormats(bytes: Uint8Array, variableName = "data"): Cop
       value: list
     },
     {
+      id: "hex",
+      label: "Hex",
+      value: formatHex(bytes)
+    },
+    {
       id: "c-array",
       label: "C array",
       language: "c",
       value: `uint8_t ${variableName}[] = { ${list} };`
-    },
-    {
-      id: "csharp-byte-array",
-      label: "C# byte[]",
-      language: "csharp",
-      value: `byte[] ${variableName} = { ${list} };`
     },
     {
       id: "python-bytes",
@@ -37,9 +36,10 @@ export function createCopyFormats(bytes: Uint8Array, variableName = "data"): Cop
       value: `${variableName} = bytes([${list}])`
     },
     {
-      id: "hex",
-      label: "Hex",
-      value: formatHex(bytes)
+      id: "csharp-byte-array",
+      label: "C# byte[]",
+      language: "csharp",
+      value: `byte[] ${variableName} = { ${list} };`
     }
   ];
 }

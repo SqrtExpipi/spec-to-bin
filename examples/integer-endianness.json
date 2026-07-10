@@ -1,0 +1,47 @@
+{
+  "formatVersion": "0.1",
+  "name": "integer_endianness",
+  "defaultEndian": "big",
+  "fields": [
+    {
+      "name": "unsigned16Big",
+      "type": "uint16",
+      "offset": 0,
+      "endian": "big",
+      "value": "0x1234"
+    },
+    {
+      "name": "unsigned16Little",
+      "type": "uint16",
+      "offset": 2,
+      "endian": "little",
+      "value": "0x1234"
+    },
+    {
+      "name": "unsigned32",
+      "type": "uint32",
+      "offset": 4,
+      "value": "0x12345678"
+    },
+    {
+      "name": "signed32Little",
+      "type": "int32",
+      "offset": 8,
+      "endian": "little",
+      "value": -2
+    },
+    {
+      "name": "unsigned64",
+      "type": "uint64",
+      "offset": 12,
+      "value": "0x0123456789ABCDEF"
+    },
+    {
+      "name": "signed64Little",
+      "type": "int64",
+      "offset": 20,
+      "endian": "little",
+      "value": "-2"
+    }
+  ]
+}

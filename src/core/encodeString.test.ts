@@ -1,4 +1,4 @@
-import { encodeString, padFixedStringBytes } from "./encodeString";
+import { decodeString, encodeString, padFixedStringBytes } from "./encodeString";
 
 describe("encodeString", () => {
   it("encodes ASCII", () => {
@@ -22,6 +22,25 @@ describe("encodeString", () => {
   });
 });
 
+describe("decodeString", () => {
+  it.each(["ascii", "utf-8", "shift_jis"] as const)("round-trips %s text", (encoding) => {
+    const value = encoding === "ascii" ? "ABC" : "通信";
+    expect(decodeString(encodeString(value, encoding), encoding)).toBe(value);
+  });
+
+  it("rejects an invalid ASCII byte", () => {
+    expect(() => decodeString(new Uint8Array([0x80]), "ascii")).toThrow();
+  });
+
+  it("rejects an incomplete UTF-8 sequence", () => {
+    expect(() => decodeString(new Uint8Array([0xe9, 0x80]), "utf-8")).toThrow();
+  });
+
+  it("rejects an incomplete Shift_JIS sequence", () => {
+    expect(() => decodeString(new Uint8Array([0x92]), "shift_jis")).toThrow();
+  });
+});
+
 describe("padFixedStringBytes", () => {
   it("pads with zero", () => {
     expect(Array.from(padFixedStringBytes(new Uint8Array([0x41]), 3, "zero"))).toEqual([0x41, 0, 0]);
@@ -35,4 +54,3 @@ describe("padFixedStringBytes", () => {
     ]);
   });
 });
-

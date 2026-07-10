@@ -11,7 +11,6 @@ const en = {
   "toolbar.copyPrompt": "Copy AI prompt",
   "toolbar.validate": "Validate",
   "toolbar.jsonPanel": "Edit JSON",
-  "toolbar.privacy": "Local only. No upload. No telemetry.",
   "toolbar.reset": "Reset",
   "toolbar.undo": "Undo",
   "toolbar.redo": "Redo",
@@ -55,6 +54,8 @@ const en = {
   "preview.expand": "Expand",
   "preview.collapse": "Collapse",
   "preview.truncated": "Showing the first {shown} of {total}.",
+  "preview.decodedText": "Decoded text ({encoding})",
+  "preview.emptyText": "(empty)",
 
   "json.apply": "Apply JSON",
   "json.copy": "Copy JSON",
@@ -113,7 +114,7 @@ const en = {
   "reset.blank": "Start blank",
   "reset.blankDescription": "Create an empty template and add fields manually.",
   "reset.sample": "Load sample template",
-  "reset.sampleDescription": "Replace the current table with a simple communication packet sample.",
+  "reset.sampleDescription": "Replace the current table with a general field-type sample.",
   "reset.cancel": "Cancel",
 
   "help.offset": "Expected byte offset from the specification. Leave empty to use the calculated offset only.",
@@ -185,7 +186,6 @@ const ja: Record<MessageKey, string> = {
   "toolbar.copyPrompt": "AI用プロンプトをコピー",
   "toolbar.validate": "検証",
   "toolbar.jsonPanel": "JSONを直接編集",
-  "toolbar.privacy": "ローカル処理。アップロードなし。テレメトリなし。",
   "toolbar.reset": "リセット",
   "toolbar.undo": "元に戻す",
   "toolbar.redo": "やり直す",
@@ -229,6 +229,8 @@ const ja: Record<MessageKey, string> = {
   "preview.expand": "展開",
   "preview.collapse": "折りたたむ",
   "preview.truncated": "先頭 {shown} を表示しています（全体 {total}）。",
+  "preview.decodedText": "復号テキスト（{encoding}）",
+  "preview.emptyText": "（空文字列）",
 
   "json.apply": "JSONを反映",
   "json.copy": "JSONをコピー",
@@ -287,7 +289,7 @@ const ja: Record<MessageKey, string> = {
   "reset.blank": "空の状態から始める",
   "reset.blankDescription": "空のテンプレートを作成し、手動で項目を追加します。",
   "reset.sample": "サンプルを読み込む",
-  "reset.sampleDescription": "現在の表をシンプルな通信電文サンプルで置き換えます。",
+  "reset.sampleDescription": "現在の表を一般的なフィールド型のサンプルで置き換えます。",
   "reset.cancel": "キャンセル",
 
   "help.offset": "仕様書上の期待Offsetです。空欄なら計算Offsetだけを使います。",

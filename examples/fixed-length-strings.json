@@ -1,0 +1,35 @@
+{
+  "formatVersion": "0.1",
+  "name": "fixed_length_strings",
+  "defaultEndian": "big",
+  "defaultEncoding": "utf-8",
+  "fields": [
+    {
+      "name": "asciiText",
+      "type": "string",
+      "offset": 0,
+      "length": 8,
+      "encoding": "ascii",
+      "padding": "zero",
+      "value": "ABC"
+    },
+    {
+      "name": "utf8Text",
+      "type": "string",
+      "offset": 8,
+      "length": 12,
+      "encoding": "utf-8",
+      "padding": "zero",
+      "value": "通信"
+    },
+    {
+      "name": "shiftJisText",
+      "type": "string",
+      "offset": 20,
+      "length": 12,
+      "encoding": "shift_jis",
+      "padding": "space",
+      "value": "通信"
+    }
+  ]
+}

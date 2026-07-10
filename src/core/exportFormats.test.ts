@@ -12,14 +12,14 @@ describe("exportFormats", () => {
 
     expect(formats.map((format) => format.id)).toEqual([
       "hex-list",
+      "hex",
       "c-array",
-      "csharp-byte-array",
       "python-bytes",
-      "hex"
+      "csharp-byte-array"
     ]);
-    expect(formats[1].value).toBe("uint8_t data[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01 };");
-    expect(formats[2].value).toBe("byte[] data = { 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01 };");
+    expect(formats[1].value).toBe("DE AD BE EF 00 01");
+    expect(formats[2].value).toBe("uint8_t data[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01 };");
     expect(formats[3].value).toBe("data = bytes([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01])");
-    expect(formats[4].value).toBe("DE AD BE EF 00 01");
+    expect(formats[4].value).toBe("byte[] data = { 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01 };");
   });
 });

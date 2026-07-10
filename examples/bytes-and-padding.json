@@ -1,0 +1,27 @@
+{
+  "formatVersion": "0.1",
+  "name": "bytes_and_padding",
+  "fields": [
+    {
+      "name": "rawBytes",
+      "type": "bytes",
+      "offset": 0,
+      "length": 4,
+      "value": "DE AD BE EF"
+    },
+    {
+      "name": "filledBytes",
+      "type": "bytes",
+      "offset": 4,
+      "length": 4,
+      "fill": "FF"
+    },
+    {
+      "name": "reserved",
+      "type": "padding",
+      "offset": 8,
+      "length": 4,
+      "fill": "00"
+    }
+  ]
+}

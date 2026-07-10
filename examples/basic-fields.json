@@ -1,0 +1,43 @@
+{
+  "formatVersion": "0.1",
+  "name": "basic_fields",
+  "defaultEndian": "big",
+  "defaultEncoding": "utf-8",
+  "fields": [
+    {
+      "name": "unsigned16",
+      "type": "uint16",
+      "offset": 0,
+      "value": "0x1234"
+    },
+    {
+      "name": "signed8",
+      "type": "int8",
+      "offset": 2,
+      "value": -1
+    },
+    {
+      "name": "rawBytes",
+      "type": "bytes",
+      "offset": 3,
+      "length": 4,
+      "value": "DE AD BE EF"
+    },
+    {
+      "name": "reserved",
+      "type": "padding",
+      "offset": 7,
+      "length": 3,
+      "fill": "00"
+    },
+    {
+      "name": "label",
+      "type": "string",
+      "offset": 10,
+      "length": 8,
+      "encoding": "utf-8",
+      "padding": "zero",
+      "value": "SAMPLE"
+    }
+  ]
+}
