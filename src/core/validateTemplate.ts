@@ -2,9 +2,13 @@ import { encodeString } from "./encodeString";
 import { calculateFieldLayout } from "./layout";
 import { templateLimits } from "./limits";
 import { parseBinaryTemplate } from "./parseTemplate";
-import { parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
+import { parseBigIntegerValue, parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
 import {
+  bigIntegerTypes,
   integerTypes,
+  isBigIntegerType,
+  isIntegerType,
+  numberIntegerTypes,
   supportedEncodings,
   type BinaryTemplate,
   type FieldDefinition,
@@ -16,9 +20,11 @@ export const fieldTypes: FieldType[] = [
   "uint8",
   "uint16",
   "uint32",
+  "uint64",
   "int8",
   "int16",
   "int32",
+  "int64",
   "bytes",
   "string",
   "ipv4",
@@ -105,20 +111,40 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
 
     validateApplicableProperties(issues, field, index);
 
-    if (field.type in integerTypes) {
-      const info = integerTypes[field.type as keyof typeof integerTypes];
+    if (isIntegerType(field.type)) {
+      const info = integerTypes[field.type];
       if (field.value === undefined || field.value === "") {
         issues.push(issue("error", "field.value.required", index, field));
+      } else if (isBigIntegerType(field.type)) {
+        if (typeof field.value !== "string") {
+          issues.push(issue("error", "number.stringRequired64", index, field));
+        } else {
+          const parsed = parseBigIntegerValue(field.value);
+          const range = bigIntegerTypes[field.type];
+
+          if (!parsed.ok) {
+            issues.push(issue("error", "number.invalid", index, field));
+          } else if (parsed.value < range.min || parsed.value > range.max) {
+            issues.push(
+              issue("error", "number.outOfRange", index, field, {
+                min: range.min.toString(),
+                max: range.max.toString(),
+                value: parsed.value.toString()
+              })
+            );
+          }
+        }
       } else {
         const parsed = parseIntegerValue(field.value);
+        const range = numberIntegerTypes[field.type];
 
         if (!parsed.ok) {
           issues.push(issue("error", "number.invalid", index, field));
-        } else if (parsed.value < info.min || parsed.value > info.max) {
+        } else if (parsed.value < range.min || parsed.value > range.max) {
           issues.push(
             issue("error", "number.outOfRange", index, field, {
-              min: info.min,
-              max: info.max,
+              min: range.min,
+              max: range.max,
               value: parsed.value
             })
           );
@@ -245,8 +271,10 @@ function validateApplicableProperties(
   if (
     field.type === "uint16" ||
     field.type === "uint32" ||
+    field.type === "uint64" ||
     field.type === "int16" ||
-    field.type === "int32"
+    field.type === "int32" ||
+    field.type === "int64"
   ) {
     applicable.add("endian");
   }

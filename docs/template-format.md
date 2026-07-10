@@ -50,9 +50,11 @@ Unknown top-level and field properties are preserved when the template is edited
 | `uint8` | 1 | Unsigned integer, 0 to 255. |
 | `uint16` | 2 | Unsigned integer, endian-aware. |
 | `uint32` | 4 | Unsigned integer, endian-aware. |
+| `uint64` | 8 | Unsigned integer, endian-aware. Value must be a JSON string. |
 | `int8` | 1 | Signed integer, -128 to 127. |
 | `int16` | 2 | Signed integer, endian-aware. |
 | `int32` | 4 | Signed integer, endian-aware. |
+| `int64` | 8 | Signed integer, endian-aware. Value must be a JSON string. |
 | `bytes` | `length` | Explicit hex bytes or fill bytes. |
 | `string` | `length` | Encoded by `encoding`, then padded. |
 | `ipv4` | 4 | Dotted IPv4 address. |
@@ -75,6 +77,20 @@ Numeric fields accept:
 - Bare hexadecimal containing A-F: `F`, `7FFF`, `-A`
 
 Digits-only values such as `10` and `0010` are decimal. Use `0x0010` when hexadecimal 0x10 is intended.
+
+For `uint64` and `int64`, `value` must always be a JSON string so the value survives JSON parsing without precision loss. The GUI and generator use `BigInt` internally.
+
+```json
+{ "name": "counter", "type": "uint64", "value": "18446744073709551615" }
+{ "name": "delta", "type": "int64", "value": "-0x8000000000000000" }
+```
+
+The supported ranges are:
+
+- `uint64`: `0` to `18446744073709551615`
+- `int64`: `-9223372036854775808` to `9223372036854775807`
+
+JSON number values are rejected for these two types, even when the particular value is small enough to be represented exactly. This keeps one unambiguous template contract.
 
 ## Byte input
 

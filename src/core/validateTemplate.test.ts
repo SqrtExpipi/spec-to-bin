@@ -7,7 +7,7 @@ function issueCodes(template: unknown): string[] {
 }
 
 describe("validateTemplate", () => {
-  it.each(["uint8", "uint16", "uint32", "int8", "int16", "int32"])(
+  it.each(["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"])(
     "requires a value for %s",
     (type) => {
       expect(
@@ -15,6 +15,49 @@ describe("validateTemplate", () => {
       ).toContain("field.value.required");
     }
   );
+
+  it.each([
+    ["uint64", "0"],
+    ["uint64", "18446744073709551615"],
+    ["int64", "-9223372036854775808"],
+    ["int64", "9223372036854775807"]
+  ])("accepts the %s boundary value %s", (type, value) => {
+    expect(
+      issueCodes({
+        formatVersion: "0.1",
+        name: "test",
+        defaultEndian: "big",
+        fields: [{ name: "n", type, value }]
+      })
+    ).toEqual([]);
+  });
+
+  it.each([
+    ["uint64", "-1"],
+    ["uint64", "18446744073709551616"],
+    ["int64", "-9223372036854775809"],
+    ["int64", "9223372036854775808"]
+  ])("rejects the out-of-range %s value %s", (type, value) => {
+    expect(
+      issueCodes({
+        formatVersion: "0.1",
+        name: "test",
+        defaultEndian: "big",
+        fields: [{ name: "n", type, value }]
+      })
+    ).toContain("number.outOfRange");
+  });
+
+  it.each(["uint64", "int64"])("rejects a JSON number value for %s", (type) => {
+    expect(
+      issueCodes({
+        formatVersion: "0.1",
+        name: "test",
+        defaultEndian: "big",
+        fields: [{ name: "n", type, value: 1 }]
+      })
+    ).toContain("number.stringRequired64");
+  });
 
   it("requires an explicit string value but allows an empty string", () => {
     const base = { formatVersion: "0.1", name: "test", defaultEncoding: "utf-8" };

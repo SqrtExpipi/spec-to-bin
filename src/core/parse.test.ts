@@ -1,4 +1,4 @@
-import { parseHexBytes, parseIntegerValue } from "./parse";
+import { parseBigIntegerValue, parseHexBytes, parseIntegerValue } from "./parse";
 
 describe("parseIntegerValue", () => {
   it.each([
@@ -15,6 +15,26 @@ describe("parseIntegerValue", () => {
   it.each(["", "0x", "G1", "1.5", null, undefined])("rejects %s", (input) => {
     expect(parseIntegerValue(input).ok).toBe(false);
   });
+});
+
+describe("parseBigIntegerValue", () => {
+  it.each([
+    ["18446744073709551615", 18446744073709551615n],
+    ["0xFFFFFFFFFFFFFFFF", 0xffffffffffffffffn],
+    ["FFFFFFFFFFFFFFFF", 0xffffffffffffffffn],
+    ["-9223372036854775808", -9223372036854775808n],
+    ["-0x8000000000000000", -0x8000000000000000n],
+    ["1_000_000_000_000", 1000000000000n]
+  ])("parses %s without precision loss", (input, expected) => {
+    expect(parseBigIntegerValue(input)).toEqual({ ok: true, value: expected });
+  });
+
+  it.each([1, Number.MAX_SAFE_INTEGER, "", "0x", "G1", "1.5", null, undefined])(
+    "rejects %s",
+    (input) => {
+      expect(parseBigIntegerValue(input).ok).toBe(false);
+    }
+  );
 });
 
 describe("parseHexBytes", () => {
@@ -35,4 +55,3 @@ describe("parseHexBytes", () => {
     expect(parseHexBytes(input).ok).toBe(false);
   });
 });
-

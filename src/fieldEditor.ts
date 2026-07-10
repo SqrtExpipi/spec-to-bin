@@ -13,9 +13,11 @@ export const fieldTypeOptions: FieldType[] = [
   "uint8",
   "uint16",
   "uint32",
+  "uint64",
   "int8",
   "int16",
   "int32",
+  "int64",
   "bytes",
   "string",
   "ipv4",
@@ -27,7 +29,14 @@ export const encodingOptions: EncodingName[] = ["ascii", "utf-8", "shift_jis", "
 export const paddingOptions: PaddingMode[] = ["zero", "space"];
 
 export function usesEndian(type: FieldType): boolean {
-  return type === "uint16" || type === "uint32" || type === "int16" || type === "int32";
+  return (
+    type === "uint16" ||
+    type === "uint32" ||
+    type === "uint64" ||
+    type === "int16" ||
+    type === "int32" ||
+    type === "int64"
+  );
 }
 
 export function usesLength(type: FieldType): boolean {

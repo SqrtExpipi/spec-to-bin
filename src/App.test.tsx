@@ -45,6 +45,27 @@ describe("App editor workflow", () => {
     expect(screen.queryByText("値は整数である必要があります。")).not.toBeInTheDocument();
   });
 
+  it("offers 64-bit integer types and shows their fixed size", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    const typeSelects = container.querySelectorAll<HTMLSelectElement>(".type-select");
+    const typeSelect = typeSelects[0];
+    expect(typeSelect).not.toBeNull();
+    expect(Array.from(typeSelect?.options ?? []).map((option) => option.value)).toEqual(
+      expect.arrayContaining(["uint64", "int64"])
+    );
+
+    fireEvent.change(typeSelect as HTMLSelectElement, { target: { value: "uint64" } });
+    const row = typeSelect?.closest("tr");
+    expect(row?.querySelector<HTMLInputElement>(".size-cell")).toHaveValue("8");
+    expect(row?.querySelectorAll("select")).toHaveLength(2);
+
+    fireEvent.change(typeSelects[1], { target: { value: "uint64" } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit JSON" }));
+    const jsonText = container.querySelector<HTMLTextAreaElement>(".json-panel textarea")?.value ?? "";
+    expect(JSON.parse(jsonText).fields[1].value).toBe("1");
+  });
+
   it("fills the calculated offset when adding the first row", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

@@ -344,6 +344,13 @@ export function App() {
     if (usesEndian(type)) {
       patch.endian = field.endian ?? template.defaultEndian ?? "big";
     }
+    if ((type === "uint64" || type === "int64") && typeof field.value === "number") {
+      // Safe JSON numbers can be migrated without changing their value. Unsafe
+      // numbers stay numeric so validation continues to expose the precision risk.
+      if (Number.isSafeInteger(field.value)) {
+        patch.value = String(field.value);
+      }
+    }
     if (type === "string") {
       patch.encoding = field.encoding ?? template.defaultEncoding ?? "utf-8";
       patch.padding = field.padding ?? "zero";

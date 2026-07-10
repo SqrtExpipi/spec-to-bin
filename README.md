@@ -35,9 +35,11 @@ It is not a general-purpose hex editor. The goal is to reduce manual hex editing
 - `uint8`
 - `uint16`
 - `uint32`
+- `uint64` (JSON string value)
 - `int8`
 - `int16`
 - `int32`
+- `int64` (JSON string value)
 - `bytes`
 - `string`
 - `ipv4`

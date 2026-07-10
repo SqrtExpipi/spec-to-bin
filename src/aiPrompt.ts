@@ -10,8 +10,9 @@ Constraints:
 - Use { "type": "bytes", "fill": "00" } for reserved areas.
 - If string encoding is unknown, set "encoding": "unknown".
 - Use byte length, not character count, for fixed-length strings.
+- Always write uint64 and int64 values as decimal or hexadecimal JSON strings, never JSON numbers.
 - "needsReview": true, "endian": "unknown", and "encoding": "unknown" block BIN export until a human fixes them.
-- Use one of these field types: uint8, uint16, uint32, int8, int16, int32, bytes, string, ipv4, padding.
+- Use one of these field types: uint8, uint16, uint32, uint64, int8, int16, int32, int64, bytes, string, ipv4, padding.
 
 Template example:
 {

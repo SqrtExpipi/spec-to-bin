@@ -123,7 +123,7 @@ const en = {
   "help.fixedSize": "This type has a fixed byte size.",
   "help.format": "Endian for multi-byte numbers, or character encoding for strings. Other types show '-'.",
   "help.fillPadding": "Fill byte for bytes/padding fields, or string padding mode for fixed-length strings.",
-  "help.value": "Field value. Numbers can be decimal, 0x000F, or hex containing A-F such as F. Byte fields also accept 0xDE, 0xAD lists.",
+  "help.value": "Field value. Numbers can be decimal, 0x000F, or hex containing A-F such as F. uint64 and int64 are stored as JSON strings. Byte fields also accept 0xDE, 0xAD lists.",
   "help.validation": "Field-specific validation results. Details appear directly under the row.",
   "help.actions": "Add a row below, duplicate this row, or delete this row.",
 
@@ -150,6 +150,8 @@ const en = {
   "issue.field.offset.invalid": "offset must be a non-negative integer.",
   "issue.field.offsetMismatch": "Expected offset is {expected}, but calculated offset is {actual}.",
   "issue.number.invalid": "Value must be an integer.",
+  "issue.number.stringRequired64":
+    "64-bit integer values must be decimal or hexadecimal strings.",
   "issue.number.outOfRange": "Value {value} is outside {min} to {max}.",
   "issue.string.tooLong": "String uses {used} bytes, but max is {max}.",
   "issue.string.encodeFailed": "String could not be encoded as {encoding}.",
@@ -295,7 +297,7 @@ const ja: Record<MessageKey, string> = {
   "help.fixedSize": "この型のbyteサイズは固定です。",
   "help.format": "複数byte数値ではEndian、文字列ではEncodingを表示します。それ以外の型は '-' です。",
   "help.fillPadding": "bytes/paddingではfill byte、固定長文字列ではpadding方法です。",
-  "help.value": "項目の値です。数値は10進数、0x000F、またはFのようにA-Fを含む16進数を使えます。bytesは0xDE, 0xAD形式にも対応します。",
+  "help.value": "項目の値です。数値は10進数、0x000F、またはFのようにA-Fを含む16進数を使えます。uint64とint64はJSON文字列として保存します。bytesは0xDE, 0xAD形式にも対応します。",
   "help.validation": "項目ごとの検証結果です。詳細は行の直下に表示します。",
   "help.actions": "下に行追加、行コピー、行削除を行います。",
 
@@ -322,6 +324,8 @@ const ja: Record<MessageKey, string> = {
   "issue.field.offset.invalid": "offset は0以上の整数である必要があります。",
   "issue.field.offsetMismatch": "期待Offsetは {expected} ですが、計算Offsetは {actual} です。",
   "issue.number.invalid": "値は整数である必要があります。",
+  "issue.number.stringRequired64":
+    "64bit整数の値は10進数または16進数の文字列で指定してください。",
   "issue.number.outOfRange": "値 {value} は {min} から {max} の範囲外です。",
   "issue.string.tooLong": "文字列は {used} byte 使用していますが、最大は {max} byteです。",
   "issue.string.encodeFailed": "文字列を {encoding} としてエンコードできません。",

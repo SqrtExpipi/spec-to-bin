@@ -33,6 +33,46 @@ export function parseIntegerValue(value: unknown): { ok: true; value: number } |
   return Number.isSafeInteger(parsed) ? { ok: true, value: parsed } : { ok: false };
 }
 
+export function parseBigIntegerValue(value: unknown): { ok: true; value: bigint } | { ok: false } {
+  // JSON numbers cannot represent every 64-bit integer exactly. Requiring a string
+  // also keeps values stable through JSON load, edit, and save operations.
+  if (typeof value !== "string") {
+    return { ok: false };
+  }
+
+  const text = value.trim().replaceAll("_", "");
+  if (!text) {
+    return { ok: false };
+  }
+
+  const negative = text.startsWith("-");
+  const unsigned = text.replace(/^[+-]/, "");
+  const hasHexPrefix = /^0x[0-9a-f]+$/i.test(unsigned);
+  const hasHexLetter = /^[0-9a-f]*[a-f][0-9a-f]*$/i.test(unsigned);
+  const radix = hasHexPrefix || hasHexLetter ? 16 : 10;
+  const body = hasHexPrefix ? unsigned.slice(2) : unsigned;
+
+  if (radix === 10 && !/^[0-9]+$/.test(body)) {
+    return { ok: false };
+  }
+
+  if (radix === 16 && !/^[0-9a-f]+$/i.test(body)) {
+    return { ok: false };
+  }
+
+  // Prevent pathological JSON input from making BigInt parse an unbounded token.
+  if (body.length > 128) {
+    return { ok: false };
+  }
+
+  try {
+    const magnitude = BigInt(radix === 16 ? `0x${body}` : body);
+    return { ok: true, value: negative ? -magnitude : magnitude };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export function parseHexBytes(value: unknown): { ok: true; bytes: Uint8Array } | { ok: false } {
   if (value instanceof Uint8Array) {
     return { ok: true, bytes: value };

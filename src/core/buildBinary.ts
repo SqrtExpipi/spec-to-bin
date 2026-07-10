@@ -1,9 +1,16 @@
 import { encodeString, padFixedStringBytes } from "./encodeString";
 import { calculateFieldLayout } from "./layout";
 import { parseBinaryTemplate } from "./parseTemplate";
-import { parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
+import { parseBigIntegerValue, parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
 import { validateParsedTemplate } from "./validateTemplate";
-import { integerTypes, type BinaryTemplate, type FieldDefinition, type BuildResult } from "./types";
+import {
+  integerTypes,
+  isBigIntegerType,
+  isIntegerType,
+  type BinaryTemplate,
+  type FieldDefinition,
+  type BuildResult
+} from "./types";
 
 export function buildBinary(templateInput: unknown): BuildResult {
   const parsed = parseBinaryTemplate(templateInput);
@@ -42,7 +49,7 @@ export function buildBinary(templateInput: unknown): BuildResult {
 }
 
 function buildFieldBytes(field: FieldDefinition, template: BinaryTemplate): Uint8Array {
-  if (field.type in integerTypes) {
+  if (isIntegerType(field.type)) {
     return buildIntegerBytes(field, template);
   }
 
@@ -80,11 +87,20 @@ function buildFieldBytes(field: FieldDefinition, template: BinaryTemplate): Uint
 
 function buildIntegerBytes(field: FieldDefinition, template: BinaryTemplate): Uint8Array {
   const info = integerTypes[field.type as keyof typeof integerTypes];
-  const parsed = parseIntegerValue(field.value ?? 0);
-  const value = parsed.ok ? parsed.value : 0;
   const output = new Uint8Array(info.size);
   const view = new DataView(output.buffer);
   const littleEndian = (field.endian ?? template.defaultEndian) === "little";
+
+  if (isBigIntegerType(field.type)) {
+    const parsed = parseBigIntegerValue(field.value ?? "0");
+    const value = parsed.ok ? parsed.value : 0n;
+    if (field.type === "uint64") view.setBigUint64(0, value, littleEndian);
+    if (field.type === "int64") view.setBigInt64(0, value, littleEndian);
+    return output;
+  }
+
+  const parsed = parseIntegerValue(field.value ?? 0);
+  const value = parsed.ok ? parsed.value : 0;
 
   if (field.type === "uint8") view.setUint8(0, value);
   if (field.type === "int8") view.setInt8(0, value);

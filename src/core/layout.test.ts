@@ -21,5 +21,21 @@ describe("calculateFieldLayout", () => {
       { offset: 7, size: 3 }
     ]);
   });
-});
 
+  it("uses eight bytes for 64-bit integers", () => {
+    const template: BinaryTemplate = {
+      formatVersion: "0.1",
+      name: "64-bit layout",
+      defaultEndian: "big",
+      fields: [
+        { name: "unsigned", type: "uint64", value: "0" },
+        { name: "signed", type: "int64", value: "-1" }
+      ]
+    };
+
+    expect(calculateFieldLayout(template).map(({ offset, size }) => ({ offset, size }))).toEqual([
+      { offset: 0, size: 8 },
+      { offset: 8, size: 8 }
+    ]);
+  });
+});

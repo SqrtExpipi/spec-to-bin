@@ -6,9 +6,11 @@ export type FieldType =
   | "uint8"
   | "uint16"
   | "uint32"
+  | "uint64"
   | "int8"
   | "int16"
   | "int32"
+  | "int64"
   | "bytes"
   | "string"
   | "ipv4"
@@ -61,17 +63,29 @@ export interface BuildResult {
   issues: ValidationIssue[];
 }
 
+export type NumberIntegerType = Extract<
+  FieldType,
+  "uint8" | "uint16" | "uint32" | "int8" | "int16" | "int32"
+>;
+export type BigIntegerType = Extract<FieldType, "uint64" | "int64">;
+export type IntegerType = NumberIntegerType | BigIntegerType;
+
 export interface IntegerTypeInfo {
-  size: 1 | 2 | 4;
-  min: number;
-  max: number;
+  size: 1 | 2 | 4 | 8;
   signed: boolean;
 }
 
-export const integerTypes: Record<
-  Extract<FieldType, "uint8" | "uint16" | "uint32" | "int8" | "int16" | "int32">,
-  IntegerTypeInfo
-> = {
+export interface NumberIntegerTypeInfo extends IntegerTypeInfo {
+  min: number;
+  max: number;
+}
+
+export interface BigIntegerTypeInfo extends IntegerTypeInfo {
+  min: bigint;
+  max: bigint;
+}
+
+export const numberIntegerTypes: Record<NumberIntegerType, NumberIntegerTypeInfo> = {
   uint8: { size: 1, min: 0, max: 0xff, signed: false },
   uint16: { size: 2, min: 0, max: 0xffff, signed: false },
   uint32: { size: 4, min: 0, max: 0xffffffff, signed: false },
@@ -79,6 +93,29 @@ export const integerTypes: Record<
   int16: { size: 2, min: -0x8000, max: 0x7fff, signed: true },
   int32: { size: 4, min: -0x80000000, max: 0x7fffffff, signed: true }
 };
+
+export const bigIntegerTypes: Record<BigIntegerType, BigIntegerTypeInfo> = {
+  uint64: { size: 8, min: 0n, max: 0xffffffffffffffffn, signed: false },
+  int64: {
+    size: 8,
+    min: -0x8000000000000000n,
+    max: 0x7fffffffffffffffn,
+    signed: true
+  }
+};
+
+export const integerTypes: Record<IntegerType, IntegerTypeInfo> = {
+  ...numberIntegerTypes,
+  ...bigIntegerTypes
+};
+
+export function isIntegerType(type: FieldType): type is IntegerType {
+  return type in integerTypes;
+}
+
+export function isBigIntegerType(type: FieldType): type is BigIntegerType {
+  return type === "uint64" || type === "int64";
+}
 
 export const supportedEncodings: EncodingName[] = ["ascii", "utf-8", "shift_jis", "unknown"];
 export const supportedEndians: Endian[] = ["big", "little", "unknown"];
