@@ -46,6 +46,7 @@ import {
   type Endian,
   type FieldDefinition,
   type FieldType,
+  type TextPreviewEncoding,
   type ValidationIssue
 } from "./core";
 import { encodingOptions, endianOptions, usesEndian, usesLength } from "./fieldEditor";
@@ -86,6 +87,7 @@ export function App() {
   const [copyOpen, setCopyOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [textPreviewEncoding, setTextPreviewEncoding] = useState<TextPreviewEncoding>("ascii");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
@@ -169,7 +171,10 @@ export function App() {
     () => result.bytes.subarray(0, templateLimits.maxPreviewBytes),
     [result.bytes]
   );
-  const hexRows = useMemo(() => toHexRows(previewBytes), [previewBytes]);
+  const hexRows = useMemo(
+    () => toHexRows(previewBytes, 16, textPreviewEncoding),
+    [previewBytes, textPreviewEncoding]
+  );
   const copyTooLarge = result.bytes.length > templateLimits.maxCopyBytes;
   const copyFormats = useMemo(
     () => (copyOpen && !copyTooLarge ? createCopyFormats(result.bytes) : []),
@@ -663,6 +668,7 @@ export function App() {
           hasErrors={hasErrors}
           hexRows={hexRows}
           onOpenCopy={() => setCopyOpen(true)}
+          onTextEncodingChange={setTextPreviewEncoding}
           onToggleExpanded={() => setPreviewExpanded((expanded) => !expanded)}
           previewNotice={
             previewTruncated
@@ -675,6 +681,7 @@ export function App() {
           selectedLayout={selectedLayout}
           selectedRange={selectedRange}
           t={t}
+          textEncoding={textPreviewEncoding}
         />
 
         <section className="field-panel" aria-label="Fields">

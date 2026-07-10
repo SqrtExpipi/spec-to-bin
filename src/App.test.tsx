@@ -195,11 +195,27 @@ describe("App editor workflow", () => {
     expect(screen.getByText("3 / 8 bytes")).toBeInTheDocument();
   });
 
-  it("explains that the ASCII column is a generated-byte view", () => {
-    render(<App />);
-    expect(screen.getByText("ASCII")).toHaveAttribute(
-      "title",
-      "生成byteのうち印字可能なASCII文字だけを表示し、それ以外は '.' で表示します。"
-    );
+  it("switches the generated-byte text preview to Shift_JIS", () => {
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "shift_jis_text",
+      defaultEncoding: "shift_jis",
+      fields: [
+        {
+          name: "shiftJisText",
+          type: "string",
+          length: 8,
+          padding: "zero",
+          value: "通信"
+        }
+      ]
+    });
+
+    expect(container.querySelector(".hex-text")).toHaveTextContent("...M....");
+    fireEvent.change(screen.getByLabelText("プレビュー文字コード"), {
+      target: { value: "shift_jis" }
+    });
+    expect(container.querySelector(".hex-text")).toHaveTextContent("通信....");
   });
 });

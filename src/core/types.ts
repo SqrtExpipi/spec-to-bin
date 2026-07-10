@@ -1,5 +1,6 @@
 export type Endian = "big" | "little" | "unknown";
 export type EncodingName = "ascii" | "utf-8" | "shift_jis" | "unknown";
+export type TextPreviewEncoding = Exclude<EncodingName, "unknown">;
 export type PaddingMode = "zero" | "space";
 
 export type FieldType =

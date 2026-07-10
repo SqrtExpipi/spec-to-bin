@@ -713,7 +713,7 @@ h2 {
   align-items: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: 72px repeat(16, 25px) minmax(94px, 1fr);
+  grid-template-columns: 72px repeat(16, 25px) minmax(180px, 1fr);
   min-height: 24px;
 }
 
@@ -727,8 +727,31 @@ h2 {
 }
 
 .hex-offset,
-.hex-ascii {
+.hex-text {
   color: var(--muted);
+}
+
+.hex-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-preview-header {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+}
+
+.text-preview-header select {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 11px;
+  min-height: 24px;
+  padding: 0 22px 0 7px;
 }
 
 .hex-byte {

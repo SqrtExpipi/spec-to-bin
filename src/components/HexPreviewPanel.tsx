@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Clipboard, XCircle } from "lucide-react";
-import { toOffset, type FieldLayout, type HexRow } from "../core";
+import { toOffset, type FieldLayout, type HexRow, type TextPreviewEncoding } from "../core";
 import type { Translator } from "../uiTypes";
 
 export function HexPreviewPanel({
@@ -9,11 +9,13 @@ export function HexPreviewPanel({
   hasErrors,
   hexRows,
   onOpenCopy,
+  onTextEncodingChange,
   onToggleExpanded,
   previewNotice,
   selectedLayout,
   selectedRange,
-  t
+  t,
+  textEncoding
 }: {
   copyDisabled: boolean;
   copyDisabledReason?: string;
@@ -21,11 +23,13 @@ export function HexPreviewPanel({
   hasErrors: boolean;
   hexRows: HexRow[];
   onOpenCopy: () => void;
+  onTextEncodingChange: (encoding: TextPreviewEncoding) => void;
   onToggleExpanded: () => void;
   previewNotice?: string;
   selectedLayout: FieldLayout | undefined;
   selectedRange: { start: number; end: number } | null;
   t: Translator;
+  textEncoding: TextPreviewEncoding;
 }) {
   const visibleRows = expanded ? hexRows : hexRows.slice(0, 2);
 
@@ -71,7 +75,20 @@ export function HexPreviewPanel({
               {Array.from({ length: 16 }, (_, column) => (
                 <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
               ))}
-              <span title={t("preview.asciiHelp")}>ASCII</span>
+              <label className="text-preview-header" title={t("preview.textHelp")}>
+                <span>{t("preview.text")}</span>
+                <select
+                  aria-label={t("preview.textEncoding")}
+                  value={textEncoding}
+                  onChange={(event) =>
+                    onTextEncodingChange(event.target.value as TextPreviewEncoding)
+                  }
+                >
+                  <option value="ascii">ASCII</option>
+                  <option value="utf-8">UTF-8</option>
+                  <option value="shift_jis">Shift_JIS</option>
+                </select>
+              </label>
             </div>
             {hexRows.length === 0 ? (
               <div className="empty-state compact">{t("panel.emptyPreview")}</div>
@@ -97,7 +114,7 @@ export function HexPreviewPanel({
                       </span>
                     );
                   })}
-                  <span className="hex-ascii">{row.ascii}</span>
+                  <span className="hex-text">{row.decodedText}</span>
                 </div>
               ))
             )}
