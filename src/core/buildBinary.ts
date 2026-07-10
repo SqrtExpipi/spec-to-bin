@@ -21,15 +21,24 @@ export function buildBinary(templateInput: unknown): BuildResult {
     };
   }
 
-  const totalSize = layouts.reduce((sum, layout) => sum + layout.size, 0);
-  const bytes = new Uint8Array(totalSize);
+  try {
+    const totalSize = layouts.reduce((sum, layout) => sum + layout.size, 0);
+    const bytes = new Uint8Array(totalSize);
 
-  for (const layout of layouts) {
-    const fieldBytes = buildFieldBytes(layout.field, template);
-    bytes.set(fieldBytes, layout.offset);
+    for (const layout of layouts) {
+      const fieldBytes = buildFieldBytes(layout.field, template);
+      bytes.set(fieldBytes, layout.offset);
+    }
+
+    return { bytes, template, layouts, issues };
+  } catch {
+    return {
+      bytes: new Uint8Array(),
+      template,
+      layouts,
+      issues: [...issues, { level: "error", code: "build.failed" }]
+    };
   }
-
-  return { bytes, template, layouts, issues };
 }
 
 function buildFieldBytes(field: FieldDefinition, template: BinaryTemplate): Uint8Array {

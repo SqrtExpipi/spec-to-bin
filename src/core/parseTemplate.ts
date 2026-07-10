@@ -10,6 +10,30 @@ import {
   type PaddingMode,
   type ValidationIssue
 } from "./types";
+import { templateLimits } from "./limits";
+
+const topLevelProperties = new Set([
+  "formatVersion",
+  "name",
+  "defaultEndian",
+  "defaultEncoding",
+  "fields"
+]);
+
+const fieldProperties = new Set([
+  "name",
+  "type",
+  "value",
+  "offset",
+  "length",
+  "endian",
+  "encoding",
+  "padding",
+  "fill",
+  "fixed",
+  "needsReview",
+  "note"
+]);
 
 const supportedFieldTypes: FieldType[] = [
   "uint8",
@@ -40,10 +64,17 @@ export function parseBinaryTemplate(input: unknown): ParseTemplateResult {
   }
 
   const template: BinaryTemplate = {
+    ...unknownProperties(input, topLevelProperties),
     formatVersion: stringValue(input.formatVersion) ?? "",
     name: stringValue(input.name) ?? "",
     fields: []
   };
+
+  for (const property of Object.keys(input)) {
+    if (!topLevelProperties.has(property)) {
+      issues.push(templateIssue("warning", "template.property.unknown", { property }));
+    }
+  }
 
   const defaultEndian = normalizeEndian(input.defaultEndian);
   if (defaultEndian.ok) {
@@ -66,7 +97,18 @@ export function parseBinaryTemplate(input: unknown): ParseTemplateResult {
     return { template, issues };
   }
 
-  template.fields = input.fields.map((rawField, index) => parseField(rawField, index, issues));
+  if (input.fields.length > templateLimits.maxFields) {
+    issues.push(
+      templateIssue("error", "template.fields.tooMany", {
+        actual: input.fields.length,
+        max: templateLimits.maxFields
+      })
+    );
+  }
+
+  template.fields = input.fields
+    .slice(0, templateLimits.maxFields)
+    .map((rawField, index) => parseField(rawField, index, issues));
   return { template, issues };
 }
 
@@ -90,9 +132,18 @@ function parseField(rawField: unknown, index: number, issues: ValidationIssue[])
   }
 
   const field: FieldDefinition = {
+    ...unknownProperties(rawField, fieldProperties),
     name: stringValue(rawField.name) ?? "",
     type: fieldType.ok ? fieldType.value : "bytes"
   };
+
+  for (const property of Object.keys(rawField)) {
+    if (!fieldProperties.has(property)) {
+      issues.push(
+        fieldIssue("warning", "field.property.unknown", index, field.name, { property })
+      );
+    }
+  }
 
   const value = primitiveValue(rawField.value);
   if (value !== undefined) {
@@ -193,6 +244,15 @@ function primitiveValue(value: unknown): string | number | undefined {
 
 function booleanValue(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
+}
+
+function unknownProperties(
+  value: Record<string, unknown>,
+  knownProperties: Set<string>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([property]) => !knownProperties.has(property))
+  );
 }
 
 function integerValue(value: unknown): { ok: true; value: number } | { ok: false } {

@@ -6,7 +6,7 @@ Constraints:
 - If the specification has an Offset column, set "offset" as a decimal byte offset.
 - Do not guess unknown byte lengths. Add "needsReview": true.
 - If endian is unknown, set "endian": "unknown".
-- Put fixed values in "value".
+- Put fixed values in "value" and set "fixed": true.
 - Use { "type": "bytes", "fill": "00" } for reserved areas.
 - If string encoding is unknown, set "encoding": "unknown".
 - Use byte length, not character count, for fixed-length strings.
@@ -17,7 +17,7 @@ Template example:
 {
   "formatVersion": "0.1",
   "name": "sample_packet",
-  "defaultEndian": "big",
-  "defaultEncoding": "shift_jis",
+  "defaultEndian": "unknown",
+  "defaultEncoding": "unknown",
   "fields": []
 }`;

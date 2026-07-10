@@ -13,6 +13,8 @@ const en = {
   "toolbar.jsonPanel": "Edit JSON",
   "toolbar.privacy": "Local only. No upload. No telemetry.",
   "toolbar.reset": "Reset",
+  "toolbar.undo": "Undo",
+  "toolbar.redo": "Redo",
 
   "theme.label": "Theme",
   "theme.system": "System",
@@ -37,6 +39,8 @@ const en = {
   "status.ok": "OK",
   "status.error": "Error {count}",
   "status.warning": "Warn {count}",
+  "status.unsaved": "Unsaved",
+  "template.name": "Template name",
 
   "panel.preview": "Hex preview",
   "panel.issues": "Template validation",
@@ -50,6 +54,7 @@ const en = {
   "panel.selectedField": "Selected field",
   "preview.expand": "Expand",
   "preview.collapse": "Collapse",
+  "preview.truncated": "Showing the first {shown} of {total}.",
 
   "json.apply": "Apply JSON",
   "json.copy": "Copy JSON",
@@ -65,6 +70,8 @@ const en = {
   "toast.updateAvailable": "A new version is available. Reload to update.",
   "toast.templateReset": "Template reset.",
   "error.binBlocked": "Fix validation errors before saving BIN.",
+  "error.jsonTooLarge": "JSON is too large. Maximum size is {max}.",
+  "confirm.replaceUnsaved": "Discard unsaved changes and open another JSON file?",
 
   "details.clearReview": "Mark reviewed",
 
@@ -74,10 +81,14 @@ const en = {
   "copy.close": "Close",
   "copy.ready": "Choose a format and copy it.",
   "copy.blocked": "Fix errors before copying.",
+  "copy.tooLarge": "Copy output is available up to {max}.",
 
   "field.add": "Add row",
   "field.addAtStart": "Add first row",
   "field.empty": "No fields yet.",
+  "field.lock": "Lock value",
+  "field.unlock": "Unlock value",
+  "field.byteUsage": "{used} / {max} bytes",
   "row.addBelow": "Add row below",
   "row.duplicate": "Duplicate",
   "row.moveUp": "Move up",
@@ -112,7 +123,7 @@ const en = {
   "help.fixedSize": "This type has a fixed byte size.",
   "help.format": "Endian for multi-byte numbers, or character encoding for strings. Other types show '-'.",
   "help.fillPadding": "Fill byte for bytes/padding fields, or string padding mode for fixed-length strings.",
-  "help.value": "Field value. Numbers can be decimal or hex strings such as 0x000F.",
+  "help.value": "Field value. Numbers can be decimal, 0x000F, or hex containing A-F such as F. Byte fields also accept 0xDE, 0xAD lists.",
   "help.validation": "Field-specific validation results. Details appear directly under the row.",
   "help.actions": "Add a row below, duplicate this row, or delete this row.",
 
@@ -122,10 +133,18 @@ const en = {
   "issue.template.name.required": "name is required.",
   "issue.template.fields.required": "fields is required.",
   "issue.template.fields.empty": "fields is empty.",
+  "issue.template.fields.tooMany": "Field count is {actual}, but the maximum is {max}.",
+  "issue.template.totalSize.tooLarge": "Total size is {actual} bytes, but the maximum is {max} bytes.",
+  "issue.template.property.unknown": "Unknown template property is preserved: {property}",
   "issue.field.invalid": "Field definition must be an object.",
   "issue.field.name.required": "Field name is required.",
+  "issue.field.name.duplicate": "Field name is duplicated: {name}",
+  "issue.field.property.unknown": "Unknown field property is preserved: {property}",
+  "issue.field.property.inapplicable": "Property {property} is ignored for type {type}.",
   "issue.field.type.invalid": "Field type is invalid: {type}",
+  "issue.field.value.required": "value is required.",
   "issue.field.length.required": "length is required and must be greater than 0.",
+  "issue.field.length.tooLarge": "length is {actual}, but the maximum is {max} bytes.",
   "issue.field.length.invalid": "length must be an integer.",
   "issue.field.value.invalid": "value must be a string or number.",
   "issue.field.offset.invalid": "offset must be a non-negative integer.",
@@ -146,7 +165,8 @@ const en = {
   "issue.reserved.unexpectedValue": "Reserved or padding field should not have a value.",
   "issue.endian.invalid": "Endian is invalid: {endian}",
   "issue.padding.invalid": "Padding is invalid: {padding}",
-  "issue.fixed.value.required": "Fixed fields must have a value."
+  "issue.fixed.value.required": "Fixed fields must have a value.",
+  "issue.build.failed": "Binary generation failed unexpectedly."
 };
 
 export type MessageKey = keyof typeof en;
@@ -165,6 +185,8 @@ const ja: Record<MessageKey, string> = {
   "toolbar.jsonPanel": "JSONを直接編集",
   "toolbar.privacy": "ローカル処理。アップロードなし。テレメトリなし。",
   "toolbar.reset": "リセット",
+  "toolbar.undo": "元に戻す",
+  "toolbar.redo": "やり直す",
 
   "theme.label": "テーマ",
   "theme.system": "システム",
@@ -189,6 +211,8 @@ const ja: Record<MessageKey, string> = {
   "status.ok": "OK",
   "status.error": "エラー {count}",
   "status.warning": "警告 {count}",
+  "status.unsaved": "未保存",
+  "template.name": "テンプレート名",
 
   "panel.preview": "Hexプレビュー",
   "panel.issues": "テンプレート全体の検証",
@@ -202,6 +226,7 @@ const ja: Record<MessageKey, string> = {
   "panel.selectedField": "選択中の項目",
   "preview.expand": "展開",
   "preview.collapse": "折りたたむ",
+  "preview.truncated": "先頭 {shown} を表示しています（全体 {total}）。",
 
   "json.apply": "JSONを反映",
   "json.copy": "JSONをコピー",
@@ -217,6 +242,8 @@ const ja: Record<MessageKey, string> = {
   "toast.updateAvailable": "新しいバージョンがあります。再読み込みで更新できます。",
   "toast.templateReset": "テンプレートをリセットしました。",
   "error.binBlocked": "BIN保存前にエラーを修正してください。",
+  "error.jsonTooLarge": "JSONが大きすぎます。最大サイズは {max} です。",
+  "confirm.replaceUnsaved": "未保存の変更を破棄して別のJSONを開きますか？",
 
   "details.clearReview": "確認済みにする",
 
@@ -226,10 +253,14 @@ const ja: Record<MessageKey, string> = {
   "copy.close": "閉じる",
   "copy.ready": "形式を選んでコピーしてください。",
   "copy.blocked": "エラー修正後にコピーできます。",
+  "copy.tooLarge": "コピー出力は {max} まで利用できます。",
 
   "field.add": "行を追加",
   "field.addAtStart": "先頭に追加",
   "field.empty": "項目がありません。",
+  "field.lock": "値を固定",
+  "field.unlock": "固定を解除",
+  "field.byteUsage": "{used} / {max} bytes",
   "row.addBelow": "下に行を追加",
   "row.duplicate": "複製",
   "row.moveUp": "上へ移動",
@@ -237,8 +268,8 @@ const ja: Record<MessageKey, string> = {
   "row.drag": "ドラッグして並び替え",
   "row.delete": "行を削除",
 
-  "format.defaultEndian": "Endian: {value}（既定）",
-  "format.defaultEncoding": "Encoding: {value}（既定）",
+  "format.defaultEndian": "Endian: {value} (default)",
+  "format.defaultEncoding": "Encoding: {value} (default)",
   "format.endian": "Endian: {value}",
   "format.encoding": "Encoding: {value}",
   "format.unknown": "unknown（要確認）",
@@ -264,7 +295,7 @@ const ja: Record<MessageKey, string> = {
   "help.fixedSize": "この型のbyteサイズは固定です。",
   "help.format": "複数byte数値ではEndian、文字列ではEncodingを表示します。それ以外の型は '-' です。",
   "help.fillPadding": "bytes/paddingではfill byte、固定長文字列ではpadding方法です。",
-  "help.value": "項目の値です。数値は10進数または0x000Fのような16進文字列を使えます。",
+  "help.value": "項目の値です。数値は10進数、0x000F、またはFのようにA-Fを含む16進数を使えます。bytesは0xDE, 0xAD形式にも対応します。",
   "help.validation": "項目ごとの検証結果です。詳細は行の直下に表示します。",
   "help.actions": "下に行追加、行コピー、行削除を行います。",
 
@@ -274,10 +305,18 @@ const ja: Record<MessageKey, string> = {
   "issue.template.name.required": "name は必須です。",
   "issue.template.fields.required": "fields は必須です。",
   "issue.template.fields.empty": "fields が空です。",
+  "issue.template.fields.tooMany": "fields が {actual} 件あります。最大は {max} 件です。",
+  "issue.template.totalSize.tooLarge": "合計サイズが {actual} bytesです。最大は {max} bytesです。",
+  "issue.template.property.unknown": "未知のテンプレートプロパティを保持しています: {property}",
   "issue.field.invalid": "項目定義はオブジェクトである必要があります。",
   "issue.field.name.required": "項目名は必須です。",
+  "issue.field.name.duplicate": "項目名が重複しています: {name}",
+  "issue.field.property.unknown": "未知の項目プロパティを保持しています: {property}",
+  "issue.field.property.inapplicable": "プロパティ {property} は型 {type} では使用されません。",
   "issue.field.type.invalid": "項目typeが不正です: {type}",
+  "issue.field.value.required": "value は必須です。",
   "issue.field.length.required": "length は必須で、1以上である必要があります。",
+  "issue.field.length.tooLarge": "length が {actual} です。最大は {max} bytesです。",
   "issue.field.length.invalid": "length は整数である必要があります。",
   "issue.field.value.invalid": "value は文字列または数値である必要があります。",
   "issue.field.offset.invalid": "offset は0以上の整数である必要があります。",
@@ -298,7 +337,8 @@ const ja: Record<MessageKey, string> = {
   "issue.reserved.unexpectedValue": "予約領域またはpadding項目には値を入れないでください。",
   "issue.endian.invalid": "endian が不正です: {endian}",
   "issue.padding.invalid": "padding が不正です: {padding}",
-  "issue.fixed.value.required": "fixed の項目には value が必要です。"
+  "issue.fixed.value.required": "fixed の項目には value が必要です。",
+  "issue.build.failed": "予期しない理由でBIN生成に失敗しました。"
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

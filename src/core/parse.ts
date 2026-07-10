@@ -14,14 +14,22 @@ export function parseIntegerValue(value: unknown): { ok: true; value: number } |
 
   const sign = text.startsWith("-") ? -1 : 1;
   const unsigned = text.replace(/^[+-]/, "");
-  const radix = /^0x[0-9a-f]+$/i.test(unsigned) ? 16 : 10;
+  const hasHexPrefix = /^0x[0-9a-f]+$/i.test(unsigned);
+  const hasHexLetter = /^[0-9a-f]*[a-f][0-9a-f]*$/i.test(unsigned);
+  const radix = hasHexPrefix || hasHexLetter ? 16 : 10;
   const body = radix === 16 ? unsigned.slice(2) : unsigned;
 
-  if (radix === 10 && !/^[0-9]+$/.test(body)) {
+  const normalizedBody = hasHexLetter && !hasHexPrefix ? unsigned : body;
+
+  if (radix === 10 && !/^[0-9]+$/.test(normalizedBody)) {
     return { ok: false };
   }
 
-  const parsed = Number.parseInt(body, radix) * sign;
+  if (radix === 16 && !/^[0-9a-f]+$/i.test(normalizedBody)) {
+    return { ok: false };
+  }
+
+  const parsed = Number.parseInt(normalizedBody, radix) * sign;
   return Number.isSafeInteger(parsed) ? { ok: true, value: parsed } : { ok: false };
 }
 
@@ -34,7 +42,20 @@ export function parseHexBytes(value: unknown): { ok: true; bytes: Uint8Array } |
     return { ok: false };
   }
 
-  const compact = value.replace(/[\s,_-]/g, "");
+  const text = value.trim();
+  if (/0x/i.test(text)) {
+    const withoutBraces = text.replace(/[{}[\]]/g, " ");
+    const tokens = withoutBraces.split(/[\s,;]+/).filter(Boolean);
+    if (tokens.length === 0 || tokens.some((token) => !/^0x[0-9a-f]{1,2}$/i.test(token))) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      bytes: new Uint8Array(tokens.map((token) => Number.parseInt(token.slice(2), 16)))
+    };
+  }
+
+  const compact = text.replace(/[\s,_-]/g, "");
   if (compact.length === 0) {
     return { ok: true, bytes: new Uint8Array() };
   }

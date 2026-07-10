@@ -2,7 +2,7 @@
   "formatVersion": "0.1",
   "name": "sample_packet",
   "defaultEndian": "big",
-  "defaultEncoding": "shift_jis",
+  "defaultEncoding": "utf-8",
   "fields": [
     {
       "name": "messageId",
@@ -46,7 +46,7 @@
       "type": "string",
       "offset": 14,
       "length": 20,
-      "encoding": "shift_jis",
+      "encoding": "utf-8",
       "padding": "zero",
       "value": "DEVICE-01"
     }

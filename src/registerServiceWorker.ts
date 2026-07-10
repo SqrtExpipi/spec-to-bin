@@ -1,3 +1,5 @@
+import { buildId } from "./version";
+
 export function registerServiceWorker(): void {
   if (!("serviceWorker" in navigator) || import.meta.env.DEV) {
     return;
@@ -5,7 +7,7 @@ export function registerServiceWorker(): void {
 
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js`)
+      .register(`${import.meta.env.BASE_URL}sw.js?v=${encodeURIComponent(buildId)}`)
       .then((registration) => {
         registration.addEventListener("updatefound", () => {
           const worker = registration.installing;

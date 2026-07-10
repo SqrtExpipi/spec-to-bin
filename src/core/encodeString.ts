@@ -29,6 +29,16 @@ export function encodeString(value: string, encoding: EncodingName): Uint8Array 
     type: "array"
   });
 
+  const roundTripCodes = Encoding.convert(converted as number[], {
+    from: "SJIS",
+    to: "UNICODE",
+    type: "array"
+  });
+  const roundTrip = Encoding.codeToString(roundTripCodes as number[]);
+  if (roundTrip !== value) {
+    throw new Error("String contains characters that cannot be represented in Shift_JIS.");
+  }
+
   return new Uint8Array(converted as number[]);
 }
 

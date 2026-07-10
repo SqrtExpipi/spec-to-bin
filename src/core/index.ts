@@ -3,6 +3,7 @@ export * from "./encodeString";
 export * from "./exportFormats";
 export * from "./formatHex";
 export * from "./layout";
+export * from "./limits";
 export * from "./parse";
 export * from "./parseTemplate";
 export * from "./types";

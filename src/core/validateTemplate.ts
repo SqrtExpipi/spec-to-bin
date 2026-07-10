@@ -1,5 +1,6 @@
 import { encodeString } from "./encodeString";
-import { calculateFieldLayout, getFieldSize } from "./layout";
+import { calculateFieldLayout } from "./layout";
+import { templateLimits } from "./limits";
 import { parseBinaryTemplate } from "./parseTemplate";
 import { parseFillByte, parseHexBytes, parseIntegerValue } from "./parse";
 import {
@@ -69,9 +70,28 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
     issues.push(issue("warning", "template.fields.empty"));
   }
 
+  if (template.fields.length > templateLimits.maxFields) {
+    issues.push(
+      issue("error", "template.fields.tooMany", undefined, undefined, {
+        actual: template.fields.length,
+        max: templateLimits.maxFields
+      })
+    );
+  }
+
+  const layouts = calculateFieldLayout(template);
+  const fieldNameCounts = new Map<string, number>();
+  for (const field of template.fields) {
+    if (field.name) {
+      fieldNameCounts.set(field.name, (fieldNameCounts.get(field.name) ?? 0) + 1);
+    }
+  }
+
   template.fields.forEach((field, index) => {
     if (!field.name) {
       issues.push(issue("error", "field.name.required", index, field));
+    } else if ((fieldNameCounts.get(field.name) ?? 0) > 1) {
+      issues.push(issue("warning", "field.name.duplicate", index, field, { name: field.name }));
     }
 
     if (!field.type || !fieldTypes.includes(field.type)) {
@@ -83,20 +103,26 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
       issues.push(issue("error", "review.required", index, field));
     }
 
+    validateApplicableProperties(issues, field, index);
+
     if (field.type in integerTypes) {
       const info = integerTypes[field.type as keyof typeof integerTypes];
-      const parsed = parseIntegerValue(field.value ?? 0);
+      if (field.value === undefined || field.value === "") {
+        issues.push(issue("error", "field.value.required", index, field));
+      } else {
+        const parsed = parseIntegerValue(field.value);
 
-      if (!parsed.ok) {
-        issues.push(issue("error", "number.invalid", index, field));
-      } else if (parsed.value < info.min || parsed.value > info.max) {
-        issues.push(
-          issue("error", "number.outOfRange", index, field, {
-            min: info.min,
-            max: info.max,
-            value: parsed.value
-          })
-        );
+        if (!parsed.ok) {
+          issues.push(issue("error", "number.invalid", index, field));
+        } else if (parsed.value < info.min || parsed.value > info.max) {
+          issues.push(
+            issue("error", "number.outOfRange", index, field, {
+              min: info.min,
+              max: info.max,
+              value: parsed.value
+            })
+          );
+        }
       }
 
       if (info.size > 1) {
@@ -109,6 +135,9 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
 
     if (field.type === "string") {
       validateLengthField(issues, field, index);
+      if (field.value === undefined) {
+        issues.push(issue("error", "field.value.required", index, field));
+      }
       const encoding = field.encoding ?? template.defaultEncoding;
 
       if (!encoding || encoding === "unknown") {
@@ -134,6 +163,10 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
 
     if (field.type === "bytes") {
       validateLengthField(issues, field, index);
+
+      if ((field.value === undefined || field.value === "") && field.fill === undefined) {
+        issues.push(issue("error", "field.value.required", index, field));
+      }
 
       if (field.value !== undefined && field.value !== "" && field.fill !== undefined) {
         issues.push(issue("error", "bytes.ambiguousSource", index, field));
@@ -176,7 +209,7 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
       if (!Number.isInteger(field.offset) || field.offset < 0) {
         issues.push(issue("error", "field.offset.invalid", index, field));
       } else {
-        const layout = calculateFieldLayout(template)[index];
+        const layout = layouts[index];
         if (layout && field.offset !== layout.offset) {
           issues.push(
             issue("error", "field.offsetMismatch", index, field, {
@@ -188,22 +221,75 @@ export function validateParsedTemplate(template: BinaryTemplate): ValidationIssu
       }
     }
 
-    if (field.fixed && field.value === undefined && field.type !== "padding") {
-      issues.push(issue("error", "fixed.value.required", index, field));
-    }
-
-    if (getFieldSize(field) === 0 && ["string", "bytes", "padding"].includes(field.type)) {
-      issues.push(issue("error", "field.length.required", index, field));
-    }
   });
 
-  calculateFieldLayout(template);
+  const totalSize = layouts.reduce((sum, layout) => sum + layout.size, 0);
+  if (!Number.isSafeInteger(totalSize) || totalSize > templateLimits.maxTotalBytes) {
+    issues.push(
+      issue("error", "template.totalSize.tooLarge", undefined, undefined, {
+        actual: totalSize,
+        max: templateLimits.maxTotalBytes
+      })
+    );
+  }
+
   return issues;
+}
+
+function validateApplicableProperties(
+  issues: ValidationIssue[],
+  field: FieldDefinition,
+  index: number
+): void {
+  const applicable = new Set<keyof FieldDefinition>();
+  if (
+    field.type === "uint16" ||
+    field.type === "uint32" ||
+    field.type === "int16" ||
+    field.type === "int32"
+  ) {
+    applicable.add("endian");
+  }
+  if (field.type === "bytes" || field.type === "string" || field.type === "padding") {
+    applicable.add("length");
+  }
+  if (field.type === "bytes" || field.type === "padding") {
+    applicable.add("fill");
+  }
+  if (field.type === "string") {
+    applicable.add("encoding");
+    applicable.add("padding");
+  }
+
+  const conditionalProperties: (keyof FieldDefinition)[] = [
+    "length",
+    "endian",
+    "encoding",
+    "padding",
+    "fill"
+  ];
+  for (const property of conditionalProperties) {
+    if (field[property] !== undefined && !applicable.has(property)) {
+      issues.push(
+        issue("warning", "field.property.inapplicable", index, field, {
+          property,
+          type: field.type
+        })
+      );
+    }
+  }
 }
 
 function validateLengthField(issues: ValidationIssue[], field: FieldDefinition, index: number): void {
   if (typeof field.length !== "number" || !Number.isInteger(field.length) || field.length <= 0) {
     issues.push(issue("error", "field.length.required", index, field));
+  } else if (field.length > templateLimits.maxFieldBytes) {
+    issues.push(
+      issue("error", "field.length.tooLarge", index, field, {
+        actual: field.length,
+        max: templateLimits.maxFieldBytes
+      })
+    );
   }
 }
 

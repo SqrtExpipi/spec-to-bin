@@ -1,6 +1,6 @@
 # Binary template format
 
-`binary-template` is the JSON format used by Spec to BIN. It is not JSON Schema itself.
+`binary-template` is the JSON format used by Spec to BIN. It is not JSON Schema itself. A machine-readable schema is available at [`binary-template.schema.json`](./binary-template.schema.json).
 
 ## Top-level object
 
@@ -9,7 +9,7 @@
   "formatVersion": "0.1",
   "name": "sample_packet",
   "defaultEndian": "big",
-  "defaultEncoding": "shift_jis",
+  "defaultEncoding": "utf-8",
   "fields": []
 }
 ```
@@ -30,7 +30,7 @@
 | --- | --- |
 | `name` | Field name shown in the GUI. |
 | `type` | Field type. |
-| `value` | Field value. Decimal numbers and hex strings such as `"0x000F"` are supported for numeric fields. |
+| `value` | Field value. See the numeric and byte input rules below. |
 | `offset` | Optional expected byte offset from the specification. It is used for validation, not automatic placement. |
 | `length` | Fixed byte length for `bytes`, `string`, and `padding`. |
 | `endian` | Field-level endian override. |
@@ -40,6 +40,8 @@
 | `fixed` | Makes the value read-only in the GUI. It is not a security boundary; JSON remains the source of truth. |
 | `needsReview` | Marks AI-generated uncertain fields for human review. |
 | `note` | Human-readable note. |
+
+Unknown top-level and field properties are preserved when the template is edited and saved, but are reported as warnings. This lets future or vendor-specific metadata survive a v0.1 round trip without silently being treated as supported behavior.
 
 ## Field types
 
@@ -55,6 +57,38 @@
 | `string` | `length` | Encoded by `encoding`, then padded. |
 | `ipv4` | 4 | Dotted IPv4 address. |
 | `padding` | `length` | Reserved area filled by `fill`. |
+
+## Required values
+
+- Integer fields require `value`.
+- `ipv4` requires a valid dotted IPv4 value.
+- `string` requires `length`, a resolvable encoding, and `value`. An empty string is valid.
+- `bytes` requires `length` and exactly one source: `value` or `fill`.
+- `padding` requires `length`; omitted `fill` means `00`.
+
+## Numeric input
+
+Numeric fields accept:
+
+- Decimal: `15`, `-10`
+- Prefix hexadecimal: `0x000F`, `-0x10`
+- Bare hexadecimal containing A-F: `F`, `7FFF`, `-A`
+
+Digits-only values such as `10` and `0010` are decimal. Use `0x0010` when hexadecimal 0x10 is intended.
+
+## Byte input
+
+`bytes.value` accepts compact or separated hex, such as:
+
+```text
+DEADBEEF
+DE AD BE EF
+DE, AD, BE, EF
+0xDE, 0xAD, 0xBE, 0xEF
+{ 0xDE, 0xAD, 0xBE, 0xEF }
+```
+
+The decoded byte count must exactly match `length`. When `fill` is used instead, it must contain exactly one byte such as `00` or `FF`.
 
 ## Fixed-length strings
 
@@ -106,3 +140,19 @@ Examples of errors:
 Examples of warnings:
 
 - Empty fields list
+- Duplicate field names
+- Unknown properties preserved from JSON
+- Known properties that do not apply to the selected field type
+
+## Resource limits
+
+To keep malformed or AI-generated input from exhausting browser memory, v0.1 applies these limits:
+
+| Resource | Limit |
+| --- | --- |
+| JSON file/editor input | 5 MiB |
+| Number of fields | 5,000 |
+| One `bytes`, `string`, or `padding` field | 16 MiB |
+| Total generated binary | 64 MiB |
+
+For rendering safety, the Hex preview shows at most the first 8 KiB and text copy formats are available up to 64 KiB. These display limits do not reduce the 64 MiB `.bin` save limit.

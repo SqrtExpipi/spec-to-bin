@@ -7,6 +7,7 @@ declare module "encoding-japanese" {
 
   const Encoding: {
     stringToCode(value: string): number[];
+    codeToString(value: number[]): string;
     convert(value: number[], options: ConvertOptions): number[] | string;
   };
 

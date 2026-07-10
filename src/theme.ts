@@ -1,9 +1,11 @@
+import { readLocalSetting, writeLocalSetting } from "./storage";
+
 export type ThemeMode = "system" | "light" | "dark";
 
 const themeStorageKey = "spec-to-bin.theme";
 
 export function detectInitialTheme(): ThemeMode {
-  const stored = localStorage.getItem(themeStorageKey);
+  const stored = readLocalSetting(themeStorageKey);
   if (stored === "system" || stored === "light" || stored === "dark") {
     return stored;
   }
@@ -12,7 +14,7 @@ export function detectInitialTheme(): ThemeMode {
 }
 
 export function saveTheme(theme: ThemeMode): void {
-  localStorage.setItem(themeStorageKey, theme);
+  writeLocalSetting(themeStorageKey, theme);
 }
 
 export function applyTheme(theme: ThemeMode): void {

@@ -1,22 +1,19 @@
 import {
   AlertTriangle,
   Braces,
-  ChevronDown,
-  ChevronUp,
   Clipboard,
-  Copy,
   Download,
   FileInput,
-  GripVertical,
   Info,
   Monitor,
   Moon,
   Plus,
   RotateCcw,
+  Redo2,
   Save,
   ShieldCheck,
   Sun,
-  Trash2,
+  Undo2,
   X,
   XCircle
 } from "lucide-react";
@@ -30,39 +27,41 @@ import {
   type DragEndEvent
 } from "@dnd-kit/core";
 import {
+  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import sampleTemplate from "../examples/communication-packet.json";
 import { aiPrompt } from "./aiPrompt";
+import { HexPreviewPanel } from "./components/HexPreviewPanel";
+import { SortableFieldRows } from "./components/SortableFieldRows";
 import {
   buildBinary,
   createCopyFormats,
+  templateLimits,
   toHexRows,
-  toOffset,
   type BinaryTemplate,
   type EncodingName,
   type Endian,
   type FieldDefinition,
-  type FieldLayout,
   type FieldType,
-  type HexRow,
-  type PaddingMode,
   type ValidationIssue
 } from "./core";
+import { encodingOptions, endianOptions, usesEndian, usesLength } from "./fieldEditor";
 import { detectInitialLocale, saveLocale, translate, type Locale } from "./i18n";
 import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./theme";
 import { appVersion } from "./version";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 type ResetMode = "blank" | "sample";
-type Translator = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) => string;
+type HistoryEntry = { value: unknown; snapshot: string };
+type DraftFieldErrorKind = "offset" | "length";
 
 const issueKeyPrefix = "issue.";
+const maxHistoryEntries = 50;
+const maxHistorySnapshotChars = 4 * 1024 * 1024;
 
 const blankTemplate: BinaryTemplate = {
   formatVersion: "0.1",
@@ -72,24 +71,13 @@ const blankTemplate: BinaryTemplate = {
   fields: []
 };
 
-const fieldTypeOptions: FieldType[] = [
-  "uint8",
-  "uint16",
-  "uint32",
-  "int8",
-  "int16",
-  "int32",
-  "bytes",
-  "string",
-  "ipv4",
-  "padding"
-];
-const endianOptions: Endian[] = ["big", "little", "unknown"];
-const encodingOptions: EncodingName[] = ["ascii", "utf-8", "shift_jis", "unknown"];
-const paddingOptions: PaddingMode[] = ["zero", "space"];
-
 export function App() {
-  const [templateInput, setTemplateInput] = useState<unknown>(sampleTemplate);
+  const [templateInput, setTemplateInputState] = useState<unknown>(sampleTemplate);
+  const [fieldIds, setFieldIds] = useState<string[]>(() => createFieldIds(sampleTemplate.fields.length));
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [future, setFuture] = useState<HistoryEntry[]>([]);
+  const [draftFieldErrors, setDraftFieldErrors] = useState<Record<string, string>>({});
+  const [savedSnapshot, setSavedSnapshot] = useState(() => serializeTemplate(sampleTemplate));
   const [selectedFieldIndex, setSelectedFieldIndex] = useState(0);
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonText, setJsonText] = useState(() => JSON.stringify(sampleTemplate, null, 2));
@@ -103,6 +91,9 @@ export function App() {
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
     translate(locale, key, params);
+  const currentSnapshot = useMemo(() => serializeTemplate(templateInput), [templateInput]);
+  const hasDraftErrors = Object.keys(draftFieldErrors).length > 0;
+  const isDirty = currentSnapshot !== savedSnapshot || hasDraftErrors;
 
   useEffect(() => {
     applyTheme(theme);
@@ -135,6 +126,10 @@ export function App() {
 
   const result = useMemo(() => buildBinary(templateInput), [templateInput]);
   const template = result.template;
+  const totalSize = useMemo(
+    () => result.layouts.reduce((sum, layout) => sum + layout.size, 0),
+    [result.layouts]
+  );
   const fieldIssues = useMemo(() => {
     const map = new Map<number, typeof result.issues>();
     for (const issue of result.issues) {
@@ -143,23 +138,47 @@ export function App() {
       }
       map.set(issue.fieldIndex, [...(map.get(issue.fieldIndex) ?? []), issue]);
     }
+    for (const [key, code] of Object.entries(draftFieldErrors)) {
+      const separatorIndex = key.lastIndexOf("|");
+      const fieldId = key.slice(0, separatorIndex);
+      const fieldIndex = fieldIds.indexOf(fieldId);
+      if (fieldIndex < 0) {
+        continue;
+      }
+      const draftIssue: ValidationIssue = {
+        level: "error",
+        code,
+        fieldIndex,
+        fieldName: result.layouts[fieldIndex]?.field.name
+      };
+      map.set(fieldIndex, [...(map.get(fieldIndex) ?? []), draftIssue]);
+    }
     return map;
-  }, [result.issues]);
+  }, [draftFieldErrors, fieldIds, result.issues, result.layouts]);
   const globalIssues = useMemo(
     () => result.issues.filter((issue) => issue.fieldIndex === undefined),
     [result.issues]
   );
 
-  const hasErrors = result.issues.some((issue) => issue.level === "error");
+  const hasErrors = result.issues.some((issue) => issue.level === "error") || hasDraftErrors;
   const selectedLayout = result.layouts.find((layout) => layout.index === selectedFieldIndex);
   const selectedRange = selectedLayout
     ? { start: selectedLayout.offset, end: selectedLayout.offset + selectedLayout.size }
     : null;
-  const hexRows = useMemo(() => toHexRows(result.bytes), [result.bytes]);
-  const copyFormats = useMemo(() => createCopyFormats(result.bytes), [result.bytes]);
+  const previewTruncated = result.bytes.length > templateLimits.maxPreviewBytes;
+  const previewBytes = useMemo(
+    () => result.bytes.subarray(0, templateLimits.maxPreviewBytes),
+    [result.bytes]
+  );
+  const hexRows = useMemo(() => toHexRows(previewBytes), [previewBytes]);
+  const copyTooLarge = result.bytes.length > templateLimits.maxCopyBytes;
+  const copyFormats = useMemo(
+    () => (copyOpen && !copyTooLarge ? createCopyFormats(result.bytes) : []),
+    [copyOpen, copyTooLarge, result.bytes]
+  );
   const sortableFieldIds = useMemo(
-    () => result.layouts.map((layout) => fieldSortableId(layout.index)),
-    [result.layouts]
+    () => result.layouts.map((layout) => fieldIds[layout.index] ?? createFieldId()),
+    [fieldIds, result.layouts]
   );
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -171,20 +190,94 @@ export function App() {
   );
 
   useEffect(() => {
-    if (hasErrors) {
+    if (hasErrors || copyTooLarge) {
       setCopyOpen(false);
     }
-  }, [hasErrors]);
+  }, [copyTooLarge, hasErrors]);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!copyOpen && !resetOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCopyOpen(false);
+        setResetOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [copyOpen, resetOpen]);
 
   function showToast(kind: NonNullable<ToastState>["kind"], message: string) {
     setToast({ kind, message });
   }
 
-  function replaceTemplate(next: unknown) {
+  function setTemplateInput(next: unknown) {
+    if (serializeTemplate(next) === currentSnapshot) {
+      return;
+    }
+    setHistory((items) =>
+      limitHistory([...items, { value: templateInput, snapshot: currentSnapshot }], "latest-at-end")
+    );
+    setFuture([]);
+    setTemplateInputState(next);
+  }
+
+  function replaceTemplate(next: unknown, markClean = false) {
     setTemplateInput(next);
+    setFieldIds(createFieldIds(getTemplateFieldCount(next)));
     setSelectedFieldIndex(0);
     setCopyOpen(false);
     setResetOpen(false);
+    setDraftFieldErrors({});
+    if (markClean) {
+      setSavedSnapshot(serializeTemplate(next));
+    }
+  }
+
+  function undo() {
+    const previous = history.at(-1);
+    if (previous === undefined) {
+      return;
+    }
+    setHistory((items) => items.slice(0, -1));
+    setFuture((items) =>
+      limitHistory(
+        [{ value: templateInput, snapshot: currentSnapshot }, ...items],
+        "latest-at-start"
+      )
+    );
+    setTemplateInputState(previous.value);
+    setFieldIds(createFieldIds(getTemplateFieldCount(previous.value)));
+    setDraftFieldErrors({});
+  }
+
+  function redo() {
+    const next = future[0];
+    if (next === undefined) {
+      return;
+    }
+    setFuture((items) => items.slice(1));
+    setHistory((items) =>
+      limitHistory([...items, { value: templateInput, snapshot: currentSnapshot }], "latest-at-end")
+    );
+    setTemplateInputState(next.value);
+    setFieldIds(createFieldIds(getTemplateFieldCount(next.value)));
+    setDraftFieldErrors({});
   }
 
   function updateField(index: number, patch: Partial<FieldDefinition>) {
@@ -196,42 +289,95 @@ export function App() {
     });
   }
 
-  function updateFieldNumber(index: number, key: "offset" | "length", value: string) {
+  function updateTemplate(patch: Partial<BinaryTemplate>) {
+    setTemplateInput({
+      ...template,
+      ...patch
+    });
+  }
+
+  function updateFieldNumber(index: number, key: "offset" | "length", value: string): boolean {
     const parsed = parseIntegerInput(value);
+    if (value.trim() !== "" && parsed === undefined) {
+      return false;
+    }
     updateField(index, {
       [key]: parsed
+    });
+    return true;
+  }
+
+  function setDraftFieldError(
+    fieldId: string,
+    kind: DraftFieldErrorKind,
+    code: string | undefined
+  ) {
+    const key = `${fieldId}|${kind}`;
+    setDraftFieldErrors((errors) => {
+      if (code === undefined) {
+        if (!(key in errors)) {
+          return errors;
+        }
+        const next = { ...errors };
+        delete next[key];
+        return next;
+      }
+      return errors[key] === code ? errors : { ...errors, [key]: code };
     });
   }
 
   function updateFieldType(index: number, type: FieldType) {
     const field = template.fields[index];
     const layout = result.layouts.find((item) => item.index === index);
-    const patch: Partial<FieldDefinition> = { type };
+    const patch: Partial<FieldDefinition> = {
+      type,
+      length: undefined,
+      endian: undefined,
+      encoding: undefined,
+      padding: undefined,
+      fill: undefined
+    };
 
-    if (usesLength(type) && field.length === undefined) {
-      patch.length = layout && layout.size > 0 ? layout.size : 1;
+    if (usesLength(type)) {
+      patch.length = field.length ?? (layout && layout.size > 0 ? layout.size : 1);
     }
-    if (usesEndian(type) && field.endian === undefined) {
-      patch.endian = template.defaultEndian ?? "big";
+    if (usesEndian(type)) {
+      patch.endian = field.endian ?? template.defaultEndian ?? "big";
     }
-    if (type === "string" && field.encoding === undefined) {
-      patch.encoding = template.defaultEncoding ?? "utf-8";
+    if (type === "string") {
+      patch.encoding = field.encoding ?? template.defaultEncoding ?? "utf-8";
+      patch.padding = field.padding ?? "zero";
     }
-    if (type === "string" && field.padding === undefined) {
-      patch.padding = "zero";
+    if (type === "bytes" || type === "padding") {
+      patch.fill = field.fill;
     }
     if (type === "padding") {
       patch.value = undefined;
     }
 
+    const fieldId = fieldIds[index];
+    if (fieldId) {
+      setDraftFieldError(fieldId, "length", undefined);
+    }
     updateField(index, patch);
   }
 
-  function setFields(fields: FieldDefinition[], nextSelectedIndex: number) {
+  function setFields(
+    fields: FieldDefinition[],
+    nextSelectedIndex: number,
+    nextFieldIds: string[] = fieldIds
+  ) {
     setTemplateInput({
       ...template,
       fields
     });
+    setFieldIds(nextFieldIds);
+    const validIds = new Set(nextFieldIds);
+    setDraftFieldErrors((errors) =>
+      Object.fromEntries(
+        Object.entries(errors).filter(([key]) => validIds.has(key.slice(0, key.lastIndexOf("|"))))
+      )
+    );
     setSelectedFieldIndex(Math.max(0, Math.min(nextSelectedIndex, fields.length - 1)));
   }
 
@@ -239,6 +385,7 @@ export function App() {
     const nextField: FieldDefinition = {
       name: makeUniqueFieldName(template.fields, "field"),
       type: "uint8",
+      offset: calculatedOffsetAt(insertIndex),
       value: 0
     };
     const fields = [
@@ -246,7 +393,16 @@ export function App() {
       nextField,
       ...template.fields.slice(insertIndex)
     ];
-    setFields(fields, insertIndex);
+    const nextIds = [...fieldIds.slice(0, insertIndex), createFieldId(), ...fieldIds.slice(insertIndex)];
+    setFields(fields, insertIndex, nextIds);
+  }
+
+  function calculatedOffsetAt(index: number): number {
+    const layout = result.layouts[index];
+    if (layout) {
+      return layout.offset;
+    }
+    return result.layouts.reduce((sum, item) => sum + item.size, 0);
   }
 
   function handleFieldDragEnd(event: DragEndEvent) {
@@ -255,11 +411,9 @@ export function App() {
       return;
     }
 
-    const fromIndex = fieldIndexFromSortableId(String(active.id));
-    const toIndex = fieldIndexFromSortableId(String(over.id));
+    const fromIndex = fieldIds.indexOf(String(active.id));
+    const toIndex = fieldIds.indexOf(String(over.id));
     if (
-      fromIndex === undefined ||
-      toIndex === undefined ||
       fromIndex < 0 ||
       toIndex < 0 ||
       fromIndex >= template.fields.length ||
@@ -268,10 +422,9 @@ export function App() {
       return;
     }
 
-    const fields = [...template.fields];
-    const [field] = fields.splice(fromIndex, 1);
-    fields.splice(toIndex, 0, field);
-    setFields(fields, toIndex);
+    const fields = arrayMove(template.fields, fromIndex, toIndex);
+    const nextIds = arrayMove(fieldIds, fromIndex, toIndex);
+    setFields(fields, toIndex, nextIds);
   }
 
   function duplicateField(index: number) {
@@ -279,7 +432,7 @@ export function App() {
     const copyField: FieldDefinition = {
       ...source,
       name: makeUniqueFieldName(template.fields, `${source.name || "field"}_copy`),
-      offset: undefined
+      offset: calculatedOffsetAt(index + 1)
     };
     const insertIndex = index + 1;
     const fields = [
@@ -287,12 +440,14 @@ export function App() {
       copyField,
       ...template.fields.slice(insertIndex)
     ];
-    setFields(fields, insertIndex);
+    const nextIds = [...fieldIds.slice(0, insertIndex), createFieldId(), ...fieldIds.slice(insertIndex)];
+    setFields(fields, insertIndex, nextIds);
   }
 
   function deleteField(index: number) {
     const fields = template.fields.filter((_, fieldIndex) => fieldIndex !== index);
-    setFields(fields, index);
+    const nextIds = fieldIds.filter((_, fieldIndex) => fieldIndex !== index);
+    setFields(fields, index, nextIds);
   }
 
   function clearNeedsReview(index: number) {
@@ -309,6 +464,10 @@ export function App() {
   }
 
   function applyJsonText() {
+    if (new TextEncoder().encode(jsonText).length > templateLimits.maxJsonBytes) {
+      showToast("error", t("error.jsonTooLarge", { max: formatBytes(templateLimits.maxJsonBytes) }));
+      return;
+    }
     try {
       const next = JSON.parse(jsonText) as unknown;
       replaceTemplate(next);
@@ -320,18 +479,28 @@ export function App() {
 
   async function copyText(text: string) {
     try {
-      await navigator.clipboard.writeText(text);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        fallbackCopyText(text);
+      }
       showToast("success", t("toast.copied"));
     } catch {
-      showToast("error", t("toast.copyFailed"));
+      try {
+        fallbackCopyText(text);
+        showToast("success", t("toast.copied"));
+      } catch {
+        showToast("error", t("toast.copyFailed"));
+      }
     }
   }
 
   function saveJson() {
     downloadBlob(
-      new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
+      new Blob([currentSnapshot], { type: "application/json" }),
       `${safeFileName(template.name || "binary-template")}.json`
     );
+    setSavedSnapshot(currentSnapshot);
     showToast("success", t("toast.jsonSaved"));
   }
 
@@ -353,14 +522,26 @@ export function App() {
       return;
     }
 
+    if (file.size > templateLimits.maxJsonBytes) {
+      showToast("error", t("error.jsonTooLarge", { max: formatBytes(templateLimits.maxJsonBytes) }));
+      return;
+    }
+
     file
       .text()
       .then((text) => {
         const next = JSON.parse(text) as unknown;
-        replaceTemplate(next);
+        replaceTemplate(next, true);
         showToast("success", t("toast.jsonLoaded"));
       })
       .catch(() => showToast("error", t("toast.invalidJson")));
+  }
+
+  function requestOpenJson() {
+    if (isDirty && !window.confirm(t("confirm.replaceUnsaved"))) {
+      return;
+    }
+    fileInputRef.current?.click();
   }
 
   return (
@@ -415,11 +596,11 @@ export function App() {
           }}
         />
         <div className="toolbar-actions">
-          <button type="button" className="button primary" onClick={() => fileInputRef.current?.click()}>
+          <button type="button" className="button primary" onClick={requestOpenJson}>
             <FileInput size={16} />
             {t("toolbar.loadJson")}
           </button>
-          <button type="button" className="button" onClick={saveJson}>
+          <button type="button" className="button" disabled={hasDraftErrors} onClick={saveJson}>
             <Save size={16} />
             {t("toolbar.saveJson")}
           </button>
@@ -427,7 +608,7 @@ export function App() {
             <Braces size={16} />
             {t("toolbar.jsonPanel")}
           </button>
-          <button type="button" className="button strong" onClick={saveBin}>
+          <button type="button" className="button strong" disabled={hasErrors} onClick={saveBin}>
             <Download size={16} />
             {t("toolbar.saveBin")}
           </button>
@@ -437,6 +618,26 @@ export function App() {
           </button>
         </div>
         <div className="toolbar-end">
+          <button
+            type="button"
+            className="icon-button"
+            disabled={history.length === 0}
+            title={t("toolbar.undo")}
+            aria-label={t("toolbar.undo")}
+            onClick={undo}
+          >
+            <Undo2 size={16} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            disabled={future.length === 0}
+            title={t("toolbar.redo")}
+            aria-label={t("toolbar.redo")}
+            onClick={redo}
+          >
+            <Redo2 size={16} />
+          </button>
           <div className="privacy-note">
             <ShieldCheck size={15} />
             {t("toolbar.privacy")}
@@ -450,12 +651,25 @@ export function App() {
 
       <main className="workspace">
         <HexPreviewPanel
-          copyDisabled={hasErrors}
+          copyDisabled={hasErrors || copyTooLarge}
+          copyDisabledReason={
+            copyTooLarge
+              ? t("copy.tooLarge", { max: formatBytes(templateLimits.maxCopyBytes) })
+              : undefined
+          }
           expanded={previewExpanded}
           hasErrors={hasErrors}
           hexRows={hexRows}
           onOpenCopy={() => setCopyOpen(true)}
           onToggleExpanded={() => setPreviewExpanded((expanded) => !expanded)}
+          previewNotice={
+            previewTruncated
+              ? t("preview.truncated", {
+                  shown: formatBytes(templateLimits.maxPreviewBytes),
+                  total: formatBytes(result.bytes.length)
+                })
+              : undefined
+          }
           selectedLayout={selectedLayout}
           selectedRange={selectedRange}
           t={t}
@@ -463,16 +677,58 @@ export function App() {
 
         <section className="field-panel" aria-label="Fields">
           <div className="panel-title-row">
-            <div>
-              <h2>{template.name}</h2>
-              <p>
-                formatVersion {template.formatVersion} / endian {template.defaultEndian ?? "big"} /
-                encoding {template.defaultEncoding ?? "utf-8"}
-              </p>
+            <div className="template-meta">
+              <label>
+                <span>{t("template.name")}</span>
+                <input
+                  className="template-meta-input"
+                  value={template.name}
+                  onChange={(event) => updateTemplate({ name: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Endian</span>
+                <select
+                  className="template-meta-select"
+                  value={template.defaultEndian ?? "unknown"}
+                  onChange={(event) => updateTemplate({ defaultEndian: event.target.value as Endian })}
+                >
+                  {endianOptions.map((endian) => (
+                    <option value={endian} key={endian}>
+                      {endian}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Encoding</span>
+                <select
+                  className="template-meta-select"
+                  value={template.defaultEncoding ?? "unknown"}
+                  onChange={(event) =>
+                    updateTemplate({ defaultEncoding: event.target.value as EncodingName })
+                  }
+                >
+                  {encodingOptions.map((encoding) => (
+                    <option value={encoding} key={encoding}>
+                      {encoding}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>formatVersion</span>
+                <input
+                  className="template-meta-input format-version-input mono"
+                  value={template.formatVersion}
+                  onChange={(event) => updateTemplate({ formatVersion: event.target.value })}
+                />
+              </label>
+              {isDirty ? <span className="dirty-badge">{t("status.unsaved")}</span> : null}
             </div>
             <div className="panel-actions">
               <div className="size-pill">
-                {t("panel.totalSize")}: <strong>{result.bytes.length}</strong> bytes
+                {t("panel.totalSize")}: <strong>{totalSize}</strong> bytes
               </div>
               <button type="button" className="button compact" onClick={() => addFieldAt(0)}>
                 <Plus size={15} />
@@ -481,8 +737,9 @@ export function App() {
             </div>
           </div>
 
-          <div className="table-wrap">
-            <table className="field-table">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
+            <div className="table-wrap">
+              <table className="field-table">
               <thead>
                 <tr>
                   <th className="drag-heading">
@@ -533,38 +790,38 @@ export function App() {
                   </tr>
                 </tbody>
               ) : (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
-                  <SortableContext items={sortableFieldIds} strategy={verticalListSortingStrategy}>
-                    {result.layouts.map((layout) => {
-                      const issues = fieldIssues.get(layout.index) ?? [];
-                      const status = getFieldStatus(issues);
-                      return (
-                        <SortableFieldRows
-                          addFieldAt={addFieldAt}
-                          clearNeedsReview={clearNeedsReview}
-                          deleteField={deleteField}
-                          duplicateField={duplicateField}
-                          id={fieldSortableId(layout.index)}
-                          issues={issues}
-                          key={fieldSortableId(layout.index)}
-                          layout={layout}
-                          locale={locale}
-                          selected={layout.index === selectedFieldIndex}
-                          setSelectedFieldIndex={setSelectedFieldIndex}
-                          status={status}
-                          t={t}
-                          template={template}
-                          updateField={updateField}
-                          updateFieldNumber={updateFieldNumber}
-                          updateFieldType={updateFieldType}
-                        />
-                      );
-                    })}
-                  </SortableContext>
-                </DndContext>
+                <SortableContext items={sortableFieldIds} strategy={verticalListSortingStrategy}>
+                  {result.layouts.map((layout) => {
+                    const issues = fieldIssues.get(layout.index) ?? [];
+                    const status = getFieldStatus(issues);
+                    return (
+                      <SortableFieldRows
+                        addFieldAt={addFieldAt}
+                        clearNeedsReview={clearNeedsReview}
+                        deleteField={deleteField}
+                        duplicateField={duplicateField}
+                        id={sortableFieldIds[layout.index]}
+                        issues={issues}
+                        key={sortableFieldIds[layout.index]}
+                        layout={layout}
+                        locale={locale}
+                        selected={layout.index === selectedFieldIndex}
+                        setSelectedFieldIndex={setSelectedFieldIndex}
+                        setDraftFieldError={setDraftFieldError}
+                        status={status}
+                        t={t}
+                        template={template}
+                        updateField={updateField}
+                        updateFieldNumber={updateFieldNumber}
+                        updateFieldType={updateFieldType}
+                      />
+                    );
+                  })}
+                </SortableContext>
               )}
-            </table>
-          </div>
+              </table>
+            </div>
+          </DndContext>
         </section>
 
         {globalIssues.length > 0 ? (
@@ -604,11 +861,16 @@ export function App() {
               </button>
             </div>
           </div>
-          <textarea value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} />
+          <textarea
+            aria-label={t("panel.json")}
+            value={jsonText}
+            onChange={(event) => setJsonText(event.target.value)}
+            spellCheck={false}
+          />
         </section>
       ) : null}
 
-      {copyOpen && !hasErrors ? (
+      {copyOpen && !hasErrors && !copyTooLarge ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setCopyOpen(false)}>
           <section
             className="modal-dialog copy-dialog"
@@ -693,384 +955,6 @@ export function App() {
   );
 }
 
-function HexPreviewPanel({
-  copyDisabled,
-  expanded,
-  hasErrors,
-  hexRows,
-  onOpenCopy,
-  onToggleExpanded,
-  selectedLayout,
-  selectedRange,
-  t
-}: {
-  copyDisabled: boolean;
-  expanded: boolean;
-  hasErrors: boolean;
-  hexRows: HexRow[];
-  onOpenCopy: () => void;
-  onToggleExpanded: () => void;
-  selectedLayout: FieldLayout | undefined;
-  selectedRange: { start: number; end: number } | null;
-  t: Translator;
-}) {
-  const visibleRows = expanded ? hexRows : hexRows.slice(0, 2);
-
-  return (
-    <section className={expanded ? "preview-panel expanded" : "preview-panel compact-preview"}>
-      <div className="panel-heading preview-heading">
-        <div>
-          <h2>{t("panel.preview")}</h2>
-          {selectedLayout ? (
-            <span>
-              {t("panel.selectedField")}: {selectedLayout.field.name}
-            </span>
-          ) : null}
-        </div>
-        <div className="preview-actions">
-          <button type="button" className="button compact" disabled={copyDisabled} onClick={onOpenCopy}>
-            <Clipboard size={14} />
-            {t("copy.open")}
-          </button>
-          <button type="button" className="button compact" onClick={onToggleExpanded}>
-            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {expanded ? t("preview.collapse") : t("preview.expand")}
-          </button>
-        </div>
-      </div>
-      {hasErrors ? (
-        <div className="empty-state compact">
-          <XCircle size={18} />
-          {t("panel.previewBlocked")}
-        </div>
-      ) : (
-        <div className="hex-dump" aria-label="Hex preview">
-          <div className="hex-dump-row hex-dump-header">
-            <span>Offset</span>
-            {Array.from({ length: 16 }, (_, column) => (
-              <span key={column}>{column.toString(16).toUpperCase().padStart(2, "0")}</span>
-            ))}
-            <span>ASCII</span>
-          </div>
-          {hexRows.length === 0 ? (
-            <div className="empty-state compact">{t("panel.emptyPreview")}</div>
-          ) : (
-            visibleRows.map((row) => (
-              <div className="hex-dump-row" key={row.offset}>
-                <span className="hex-offset">{toOffset(row.offset)}</span>
-                {Array.from({ length: 16 }, (_, column) => {
-                  const byte = row.bytes[column];
-                  return (
-                    <span
-                      key={column}
-                      className={
-                        byte &&
-                        selectedRange &&
-                        byte.index >= selectedRange.start &&
-                        byte.index < selectedRange.end
-                          ? "hex-byte selected-byte"
-                          : "hex-byte"
-                      }
-                    >
-                      {byte?.text ?? ""}
-                    </span>
-                  );
-                })}
-                <span className="hex-ascii">{row.ascii}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SortableFieldRows({
-  addFieldAt,
-  clearNeedsReview,
-  deleteField,
-  duplicateField,
-  id,
-  issues,
-  layout,
-  locale,
-  selected,
-  setSelectedFieldIndex,
-  status,
-  t,
-  template,
-  updateField,
-  updateFieldNumber,
-  updateFieldType
-}: {
-  addFieldAt: (insertIndex: number) => void;
-  clearNeedsReview: (index: number) => void;
-  deleteField: (index: number) => void;
-  duplicateField: (index: number) => void;
-  id: string;
-  issues: ValidationIssue[];
-  layout: FieldLayout;
-  locale: Locale;
-  selected: boolean;
-  setSelectedFieldIndex: (index: number) => void;
-  status: "ok" | "warning" | "error";
-  t: Translator;
-  template: BinaryTemplate;
-  updateField: (index: number, patch: Partial<FieldDefinition>) => void;
-  updateFieldNumber: (index: number, key: "offset" | "length", value: string) => void;
-  updateFieldType: (index: number, type: FieldType) => void;
-}) {
-  const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
-    useSortable({ id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition
-  };
-
-  return (
-    <tbody
-      className={isDragging ? "field-row-group dragging" : "field-row-group"}
-      ref={setNodeRef}
-      style={style}
-    >
-      <tr className={selected ? "selected" : ""} onClick={() => setSelectedFieldIndex(layout.index)}>
-        <td className="drag-cell">
-          <button
-            type="button"
-            className="drag-handle"
-            title={t("row.drag")}
-            aria-label={t("row.drag")}
-            ref={setActivatorNodeRef}
-            onClick={(event) => event.stopPropagation()}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical size={15} />
-          </button>
-        </td>
-        <td>
-          <input
-            className="table-input mono offset-cell"
-            value={layout.field.offset === undefined ? "" : toOffset(layout.field.offset)}
-            placeholder={toOffset(layout.offset)}
-            title={t("help.offset")}
-            onChange={(event) => updateFieldNumber(layout.index, "offset", event.target.value)}
-            onClick={(event) => event.stopPropagation()}
-          />
-        </td>
-        <td>
-          <input
-            className="table-input field-name"
-            value={layout.field.name}
-            onChange={(event) => updateField(layout.index, { name: event.target.value })}
-            onClick={(event) => event.stopPropagation()}
-          />
-        </td>
-        <td>
-          <select
-            className="table-input type-select"
-            value={layout.field.type}
-            onChange={(event) => updateFieldType(layout.index, event.target.value as FieldType)}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {fieldTypeOptions.map((type) => (
-              <option value={type} key={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </td>
-        <td>
-          {usesLength(layout.field.type) ? (
-            <input
-              className="table-input mono size-cell"
-              value={layout.field.length ?? ""}
-              onChange={(event) => updateFieldNumber(layout.index, "length", event.target.value)}
-              onClick={(event) => event.stopPropagation()}
-            />
-          ) : (
-            <input className="table-input mono size-cell" value={layout.size} disabled title={t("help.fixedSize")} />
-          )}
-        </td>
-        <td>
-          {usesEndian(layout.field.type) ? (
-            <select
-              className="table-input"
-              value={layout.field.endian ?? "__default"}
-              onChange={(event) =>
-                updateField(layout.index, {
-                  endian: event.target.value === "__default" ? undefined : (event.target.value as Endian)
-                })
-              }
-              onClick={(event) => event.stopPropagation()}
-            >
-              <option value="__default">
-                {t("format.defaultEndian", {
-                  value: template.defaultEndian ?? "big"
-                })}
-              </option>
-              {endianOptions.map((endian) => (
-                <option value={endian} key={endian}>
-                  {endian === "unknown" ? t("format.unknownEndian") : t("format.endian", { value: endian })}
-                </option>
-              ))}
-            </select>
-          ) : layout.field.type === "string" ? (
-            <select
-              className="table-input"
-              value={layout.field.encoding ?? "__default"}
-              onChange={(event) =>
-                updateField(layout.index, {
-                  encoding:
-                    event.target.value === "__default" ? undefined : (event.target.value as EncodingName)
-                })
-              }
-              onClick={(event) => event.stopPropagation()}
-            >
-              <option value="__default">
-                {t("format.defaultEncoding", {
-                  value: template.defaultEncoding ?? "utf-8"
-                })}
-              </option>
-              {encodingOptions.map((encoding) => (
-                <option value={encoding} key={encoding}>
-                  {encoding === "unknown"
-                    ? t("format.unknownEncoding")
-                    : t("format.encoding", { value: encoding })}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="cell-note">{t("format.notUsed")}</span>
-          )}
-        </td>
-        <td>
-          {layout.field.type === "string" ? (
-            <select
-              className="table-input"
-              value={layout.field.padding ?? "zero"}
-              onChange={(event) => updateField(layout.index, { padding: event.target.value as PaddingMode })}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {paddingOptions.map((padding) => (
-                <option value={padding} key={padding}>
-                  {t(`padding.${padding}`)}
-                </option>
-              ))}
-            </select>
-          ) : layout.field.type === "bytes" || layout.field.type === "padding" ? (
-            <input
-              className="table-input mono fill-cell"
-              value={layout.field.fill ?? ""}
-              placeholder="00"
-              title={t("help.fillPadding")}
-              onChange={(event) =>
-                updateField(layout.index, {
-                  fill: event.target.value.trim() === "" ? undefined : event.target.value
-                })
-              }
-              onClick={(event) => event.stopPropagation()}
-            />
-          ) : (
-            <span className="cell-note">{t("format.notUsed")}</span>
-          )}
-        </td>
-        <td>
-          {layout.field.type === "padding" ? (
-            <span className="cell-note">{t("value.generatedFromFill")}</span>
-          ) : (
-            <input
-              className="table-input value-input"
-              value={String(layout.field.value ?? "")}
-              disabled={layout.field.fixed}
-              onChange={(event) => updateField(layout.index, { value: event.target.value })}
-              onClick={(event) => event.stopPropagation()}
-            />
-          )}
-        </td>
-        <td>
-          <StatusBadge
-            status={status}
-            label={issues.length === 0 ? t("status.ok") : t(`status.${status}`, { count: issues.length })}
-          />
-        </td>
-        <td>
-          <input
-            className="table-input note-cell"
-            value={layout.field.note ?? ""}
-            onChange={(event) =>
-              updateField(layout.index, {
-                note: event.target.value === "" ? undefined : event.target.value
-              })
-            }
-            onClick={(event) => event.stopPropagation()}
-          />
-        </td>
-        <td className="actions-cell">
-          <div className="row-actions">
-            <button
-              type="button"
-              className="icon-button"
-              title={t("row.addBelow")}
-              aria-label={t("row.addBelow")}
-              onClick={(event) => {
-                event.stopPropagation();
-                addFieldAt(layout.index + 1);
-              }}
-            >
-              <Plus size={14} />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              title={t("row.duplicate")}
-              aria-label={t("row.duplicate")}
-              onClick={(event) => {
-                event.stopPropagation();
-                duplicateField(layout.index);
-              }}
-            >
-              <Copy size={14} />
-            </button>
-            <button
-              type="button"
-              className="icon-button danger"
-              title={t("row.delete")}
-              aria-label={t("row.delete")}
-              onClick={(event) => {
-                event.stopPropagation();
-                deleteField(layout.index);
-              }}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {issues.length > 0 ? (
-        <tr className="field-issues-row">
-          <td colSpan={11}>
-            <div className="field-issues">
-              {issues.map((issue, index) => (
-                <div className={`field-issue ${issue.level}`} key={`${issue.code}-${index}`}>
-                  {issue.level === "error" ? <XCircle size={15} /> : <AlertTriangle size={15} />}
-                  <span>{translateIssue(locale, issue.code, issue.messageParams)}</span>
-                </div>
-              ))}
-              {layout.field.needsReview ? (
-                <button type="button" className="button compact" onClick={() => clearNeedsReview(layout.index)}>
-                  {t("details.clearReview")}
-                </button>
-              ) : null}
-            </div>
-          </td>
-        </tr>
-      ) : null}
-    </tbody>
-  );
-}
-
 function HeaderLabel({ label, help }: { label: string; help: string }) {
   return (
     <span className="th-label">
@@ -1107,16 +991,6 @@ function ThemeButton({
   );
 }
 
-function StatusBadge({
-  status,
-  label
-}: {
-  status: "ok" | "warning" | "error";
-  label: string;
-}) {
-  return <span className={`status-badge ${status}`}>{label}</span>;
-}
-
 function getFieldStatus(issues: { level: string }[]): "ok" | "warning" | "error" {
   if (issues.some((issue) => issue.level === "error")) {
     return "error";
@@ -1138,21 +1012,82 @@ function translateIssue(
   return translate(locale, key, params);
 }
 
-function usesEndian(type: FieldType): boolean {
-  return type === "uint16" || type === "uint32" || type === "int16" || type === "int32";
+let fieldIdSequence = 0;
+
+function createFieldId(): string {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  fieldIdSequence += 1;
+  return `field-${Date.now()}-${fieldIdSequence}`;
 }
 
-function usesLength(type: FieldType): boolean {
-  return type === "bytes" || type === "string" || type === "padding";
+function createFieldIds(count: number): string[] {
+  const safeCount = Math.max(0, Math.min(count, templateLimits.maxFields));
+  return Array.from({ length: safeCount }, () => createFieldId());
 }
 
-function fieldSortableId(index: number): string {
-  return `field-${index}`;
+function getTemplateFieldCount(value: unknown): number {
+  if (typeof value !== "object" || value === null || !("fields" in value)) {
+    return 0;
+  }
+  const fields = (value as { fields?: unknown }).fields;
+  return Array.isArray(fields) ? Math.min(fields.length, templateLimits.maxFields) : 0;
 }
 
-function fieldIndexFromSortableId(id: string): number | undefined {
-  const match = /^field-(\d+)$/.exec(id);
-  return match ? Number.parseInt(match[1], 10) : undefined;
+function serializeTemplate(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? "null";
+  } catch {
+    return "null";
+  }
+}
+
+function limitHistory(
+  entries: HistoryEntry[],
+  order: "latest-at-start" | "latest-at-end"
+): HistoryEntry[] {
+  const ordered = order === "latest-at-start" ? entries : [...entries].reverse();
+  const kept: HistoryEntry[] = [];
+  let totalChars = 0;
+
+  for (const entry of ordered) {
+    if (
+      kept.length >= maxHistoryEntries ||
+      (kept.length > 0 && totalChars + entry.snapshot.length > maxHistorySnapshotChars)
+    ) {
+      break;
+    }
+    kept.push(entry);
+    totalChars += entry.snapshot.length;
+  }
+
+  return order === "latest-at-start" ? kept : kept.reverse();
+}
+
+function fallbackCopyText(value: string): void {
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Copy command failed.");
+  }
+}
+
+function formatBytes(value: number): string {
+  if (value >= 1024 * 1024) {
+    return `${Math.round(value / (1024 * 1024))} MiB`;
+  }
+  if (value >= 1024) {
+    return `${Math.round(value / 1024)} KiB`;
+  }
+  return `${value} bytes`;
 }
 
 function makeUniqueFieldName(fields: FieldDefinition[], base: string): string {

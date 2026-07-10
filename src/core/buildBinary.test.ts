@@ -128,4 +128,41 @@ describe("buildBinary", () => {
 
     expect(issues.some((issue) => issue.code === "bytes.ambiguousSource")).toBe(true);
   });
+
+  it("generates non-zero reserved-area fill bytes", () => {
+    const result = buildBinary({
+      formatVersion: "0.1",
+      name: "padding_fill",
+      fields: [{ name: "reserved", type: "padding", length: 3, fill: "FF" }]
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(formatHex(result.bytes)).toBe("FF FF FF");
+  });
+
+  it("space-pads fixed-length strings", () => {
+    const result = buildBinary({
+      formatVersion: "0.1",
+      name: "space_padding",
+      defaultEncoding: "ascii",
+      fields: [{ name: "text", type: "string", length: 4, padding: "space", value: "A" }]
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(formatHex(result.bytes)).toBe("41 20 20 20");
+  });
+
+  it("does not block generation for warnings", () => {
+    const result = buildBinary({
+      formatVersion: "0.1",
+      name: "warning_only",
+      fields: [
+        { name: "same", type: "uint8", value: 1 },
+        { name: "same", type: "uint8", value: 2 }
+      ]
+    });
+
+    expect(result.issues.every((issue) => issue.level === "warning")).toBe(true);
+    expect(formatHex(result.bytes)).toBe("01 02");
+  });
 });

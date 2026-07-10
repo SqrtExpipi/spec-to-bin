@@ -1,0 +1,27 @@
+name: Release offline ZIP
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:run
+      - run: npm run build:offline
+      - name: Create offline ZIP
+        run: cd dist-offline && zip -r "../spec-to-bin-${GITHUB_REF_NAME}-offline.zip" .
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "spec-to-bin-${GITHUB_REF_NAME}-offline.zip" --generate-notes

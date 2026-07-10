@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sqrtexpipi.github.io/spec-to-bin/docs/binary-template.schema.json",
+  "title": "Spec to BIN binary template",
+  "type": "object",
+  "required": ["formatVersion", "name", "fields"],
+  "properties": {
+    "formatVersion": { "const": "0.1" },
+    "name": { "type": "string", "minLength": 1 },
+    "defaultEndian": { "enum": ["big", "little", "unknown"] },
+    "defaultEncoding": { "enum": ["ascii", "utf-8", "shift_jis", "unknown"] },
+    "fields": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": { "$ref": "#/$defs/field" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "uint8",
+            "uint16",
+            "uint32",
+            "int8",
+            "int16",
+            "int32",
+            "bytes",
+            "string",
+            "ipv4",
+            "padding"
+          ]
+        },
+        "value": { "type": ["string", "number"] },
+        "offset": { "type": "integer", "minimum": 0 },
+        "length": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "endian": { "enum": ["big", "little", "unknown"] },
+        "encoding": { "enum": ["ascii", "utf-8", "shift_jis", "unknown"] },
+        "padding": { "enum": ["zero", "space"] },
+        "fill": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}$" },
+        "fixed": { "type": "boolean" },
+        "needsReview": { "type": "boolean" },
+        "note": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": { "enum": ["uint8", "uint16", "uint32", "int8", "int16", "int32"] }
+            }
+          },
+          "then": { "required": ["value"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "string" } } },
+          "then": {
+            "required": ["length", "value"],
+            "properties": { "value": { "type": "string" } }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "bytes" } } },
+          "then": {
+            "required": ["length"],
+            "properties": { "value": { "type": "string", "minLength": 1 } },
+            "oneOf": [
+              { "required": ["value"], "not": { "required": ["fill"] } },
+              { "required": ["fill"], "not": { "required": ["value"] } }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "padding" } } },
+          "then": {
+            "required": ["length"],
+            "properties": { "value": false }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "ipv4" } } },
+          "then": {
+            "required": ["value"],
+            "properties": { "value": { "type": "string" } }
+          }
+        }
+      ],
+      "additionalProperties": true
+    }
+  }
+}
