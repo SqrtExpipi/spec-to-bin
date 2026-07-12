@@ -6,6 +6,23 @@ Spec to BIN is a browser-based tool for creating communication packets, embedded
 
 It is not a general-purpose hex editor. The goal is to reduce manual hex editing by letting you define binary structure, edit values in a GUI, validate errors, preview bytes, and export `.bin` files.
 
+**[Open Spec to BIN](https://sqrtexpipi.github.io/spec-to-bin/)**
+
+![Spec to BIN field editor and Hex preview in the light theme](./docs/images/en-light.png)
+
+<details>
+<summary>More screenshots</summary>
+
+### Dark theme
+
+![Spec to BIN in the dark theme](./docs/images/en-dark.png)
+
+### Inline validation
+
+![Spec to BIN showing an expected-offset validation error](./docs/images/en-validation.png)
+
+</details>
+
 ## Privacy
 
 - Runs locally in your browser.
