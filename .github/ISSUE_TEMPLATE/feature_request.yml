@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest an improvement or a new binary-generation workflow
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the general workflow without posting customer specifications, credentials, internal protocol details, or production binary data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain the manual work, error risk, or workflow limitation behind the request.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful behavior and how it should appear in the UI or JSON format.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Fictional example
+      description: Provide a generic example without confidential or project-specific data.
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often would this be used?
+      options:
+        - Daily
+        - Weekly
+        - Monthly
+        - Occasionally
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround
+      description: Explain how you handle this workflow today.
+  - type: checkboxes
+    id: confidentiality
+    attributes:
+      label: Confidentiality check
+      options:
+        - label: I confirmed that this request contains no confidential or production data.
+          required: true
