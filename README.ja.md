@@ -121,6 +121,8 @@ npm run test:run
 
 ## ドキュメント
 
+- [利用ガイド（日本語）](./docs/user-guide.ja.md)
+- [User guide（英語）](./docs/user-guide.md)
 - [Template format](./docs/template-format.md)
 - [JSON Schema](./docs/binary-template.schema.json)
 - [AI prompt example（日本語）](./prompts/spec-to-bin-json.ja.md)
