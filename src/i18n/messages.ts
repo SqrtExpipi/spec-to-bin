@@ -178,7 +178,7 @@ export type MessageParams = Record<string, string | number | undefined>;
 
 const ja: Record<MessageKey, string> = {
   "app.title": "Spec to BIN",
-  "app.tagline": "仕様書から、テストBINを作る。",
+  "app.tagline": "仕様書から、テスト用バイナリファイルを作る。",
   "app.version": "v{version}",
 
   "toolbar.loadJson": "JSONファイルを開く",

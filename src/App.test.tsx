@@ -22,6 +22,7 @@ describe("App editor workflow", () => {
   it("starts with a blank template and keeps samples behind Reset", () => {
     const { container } = render(<App />);
 
+    expect(screen.getByText("仕様書から、テスト用バイナリファイルを作る。")).toBeInTheDocument();
     expect(screen.getByLabelText("テンプレート名")).toHaveValue("new_template");
     expect(container.querySelectorAll(".field-row-group")).toHaveLength(0);
     expect(screen.getByText("まだbyteがありません。項目を追加するとプレビューされます。")).toBeInTheDocument();
