@@ -1,9 +1,9 @@
 # Spec to BIN JSON prompt
 
-Use the text below as a prompt, replace the placeholder between the specification markers, and review the generated JSON in Spec to BIN before exporting a binary.
+Use the text below as a prompt, then paste the specification after it or attach the specification file. Review the generated JSON in Spec to BIN before exporting a binary.
 
 ```text
-Read the specification between the markers below and create a Spec to BIN binary-template JSON document.
+Read the specification supplied after this prompt or as an attachment and create a Spec to BIN binary-template JSON document.
 
 Output rules:
 - Output one JSON object only. Do not use Markdown fences or add explanations.
@@ -23,6 +23,12 @@ Type rules:
 - string requires a positive byte "length", "value", "encoding" (ascii, utf-8, or shift_jis), and "padding" (zero or space). Length is measured after encoding, in bytes rather than characters.
 - ipv4 requires a dotted decimal string "value" and is always 4 bytes.
 - padding represents a reserved or unused area. It requires a positive byte "length", may have a one-byte hexadecimal "fill", and must not have "value".
+
+CRC and checksum fields:
+- Spec to BIN v0.1 does not calculate CRC or checksums automatically. Do not emit unsupported properties such as calculation, formula, expression, or checksum.
+- Represent the output area as an existing unsigned integer type when its width and byte order are clear; otherwise use bytes with the specified length.
+- CRC and checksum values remain manually editable ordinary values. If the specification provides a concrete value, set it in "value" and add a "note" that it is not recalculated automatically.
+- If no concrete value is provided, do not invent one. Add "needsReview": true and a "note" that the value must be calculated externally and entered by a human. Omit the unknown value so BIN export remains blocked.
 
 Unknown or ambiguous information:
 - Do not silently guess a byte length, endian, encoding, signedness, or fill value.
@@ -64,7 +70,5 @@ Valid example:
   ]
 }
 
---- SPECIFICATION START ---
-Paste the specification here.
---- SPECIFICATION END ---
+Provide the specification after this prompt or attach the specification file.
 ```

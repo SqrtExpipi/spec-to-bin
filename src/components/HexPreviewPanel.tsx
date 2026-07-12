@@ -31,10 +31,12 @@ export function HexPreviewPanel({
   t: Translator;
   textEncoding: TextPreviewEncoding;
 }) {
-  const visibleRows = expanded ? hexRows : hexRows.slice(0, 2);
+  const canExpand = hexRows.length > 2;
+  const isExpanded = canExpand && expanded;
+  const visibleRows = isExpanded ? hexRows : hexRows.slice(0, 2);
 
   return (
-    <section className={expanded ? "preview-panel expanded" : "preview-panel compact-preview"}>
+    <section className={isExpanded ? "preview-panel expanded" : "preview-panel compact-preview"}>
       <div className="panel-heading preview-heading">
         <div>
           <h2>{t("panel.preview")}</h2>
@@ -55,10 +57,12 @@ export function HexPreviewPanel({
             <Clipboard size={14} />
             {t("copy.open")}
           </button>
-          <button type="button" className="button compact" onClick={onToggleExpanded}>
-            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {expanded ? t("preview.collapse") : t("preview.expand")}
-          </button>
+          {canExpand ? (
+            <button type="button" className="button compact" onClick={onToggleExpanded}>
+              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {isExpanded ? t("preview.collapse") : t("preview.expand")}
+            </button>
+          ) : null}
         </div>
       </div>
       {hasErrors ? (

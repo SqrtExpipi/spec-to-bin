@@ -194,6 +194,12 @@ export function App() {
   );
 
   useEffect(() => {
+    if (hexRows.length <= 2) {
+      setPreviewExpanded(false);
+    }
+  }, [hexRows.length]);
+
+  useEffect(() => {
     if (hasErrors || copyTooLarge) {
       setCopyOpen(false);
     }
@@ -607,21 +613,21 @@ export function App() {
           }}
         />
         <div className="toolbar-actions">
-          <button type="button" className="button primary" onClick={requestOpenJson}>
+          <button type="button" className="button primary" disabled={hasErrors} onClick={saveBin}>
+            <Download size={16} />
+            {t("toolbar.saveBin")}
+          </button>
+          <button type="button" className="button" onClick={requestOpenJson}>
             <FileInput size={16} />
             {t("toolbar.loadJson")}
-          </button>
-          <button type="button" className="button" disabled={hasDraftErrors} onClick={saveJson}>
-            <Save size={16} />
-            {t("toolbar.saveJson")}
           </button>
           <button type="button" className="button" onClick={() => setJsonOpen((open) => !open)}>
             <Braces size={16} />
             {t("toolbar.jsonPanel")}
           </button>
-          <button type="button" className="button strong" disabled={hasErrors} onClick={saveBin}>
-            <Download size={16} />
-            {t("toolbar.saveBin")}
+          <button type="button" className="button" disabled={hasDraftErrors} onClick={saveJson}>
+            <Save size={16} />
+            {t("toolbar.saveJson")}
           </button>
           <button type="button" className="button" onClick={() => copyText(getAiPrompt(locale))}>
             <Clipboard size={16} />

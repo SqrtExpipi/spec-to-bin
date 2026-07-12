@@ -47,6 +47,38 @@ describe("App editor workflow", () => {
     ).toBe(true);
   });
 
+  it("places BIN save first and gives it the primary action style", () => {
+    render(<App />);
+    const saveBin = screen.getByRole("button", { name: "BINファイルを保存" });
+    const loadJson = screen.getByRole("button", { name: "JSONファイルを開く" });
+
+    expect(saveBin).toHaveClass("primary");
+    expect(loadJson).not.toHaveClass("primary");
+    expect(
+      Boolean(saveBin.compareDocumentPosition(loadJson) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBe(true);
+  });
+
+  it("shows preview expansion only when generated data exceeds two rows", () => {
+    const compact = render(<App />);
+    applyTemplate(compact.container, {
+      formatVersion: "0.1",
+      name: "two_rows",
+      fields: [{ name: "data", type: "bytes", length: 32, fill: "00" }]
+    });
+    expect(screen.queryByRole("button", { name: "展開" })).not.toBeInTheDocument();
+    compact.unmount();
+
+    const expandable = render(<App />);
+    applyTemplate(expandable.container, {
+      formatVersion: "0.1",
+      name: "three_rows",
+      fields: [{ name: "data", type: "bytes", length: 33, fill: "00" }]
+    });
+    fireEvent.click(screen.getByRole("button", { name: "展開" }));
+    expect(screen.getByRole("button", { name: "折りたたむ" })).toBeInTheDocument();
+  });
+
   it("marks edits as unsaved and can undo them", async () => {
     const user = userEvent.setup();
     render(<App />);

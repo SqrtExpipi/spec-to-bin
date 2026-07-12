@@ -237,12 +237,6 @@ h2 {
   color: #ffffff;
 }
 
-.button.strong {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--panel);
-}
-
 .button.compact {
   height: 32px;
   padding: 0 10px;
