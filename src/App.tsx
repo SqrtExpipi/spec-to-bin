@@ -172,8 +172,8 @@ export function App() {
     [result.bytes]
   );
   const hexRows = useMemo(
-    () => toHexRows(previewBytes, 16, textPreviewEncoding),
-    [previewBytes, textPreviewEncoding]
+    () => toHexRows(previewBytes, 16, textPreviewEncoding, result.layouts),
+    [previewBytes, result.layouts, textPreviewEncoding]
   );
   const copyTooLarge = result.bytes.length > templateLimits.maxCopyBytes;
   const copyFormats = useMemo(

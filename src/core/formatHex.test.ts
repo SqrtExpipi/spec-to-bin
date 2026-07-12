@@ -30,4 +30,25 @@ describe("toHexRows", () => {
   it("shows malformed encoded sequences as dots", () => {
     expect(toHexRows(new Uint8Array([0x92]), 16, "shift_jis")[0].decodedText).toBe(".");
   });
+
+  it("resets Shift_JIS decoding at field boundaries", () => {
+    const bytes = new Uint8Array([0xff, 0x83, 0x8e, 0x8e, 0x8c, 0xb1, 0x8b, 0x40, 0x41]);
+    const withoutBoundaries = toHexRows(bytes, 16, "shift_jis")[0].decodedText;
+    const withBoundaries = toHexRows(bytes, 16, "shift_jis", [
+      { offset: 0, size: 2 },
+      { offset: 2, size: 7 }
+    ])[0].decodedText;
+
+    expect(withoutBoundaries).not.toContain("試験機A");
+    expect(withBoundaries).toContain("試験機A");
+  });
+
+  it("ignores field segments beyond the preview byte range", () => {
+    const rows = toHexRows(new Uint8Array([0x41]), 16, "shift_jis", [
+      { offset: 0, size: 1 },
+      { offset: 100, size: 8 }
+    ]);
+
+    expect(rows[0].decodedText).toBe("A");
+  });
 });

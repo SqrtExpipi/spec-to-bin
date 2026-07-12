@@ -228,27 +228,32 @@ describe("App editor workflow", () => {
     expect(screen.getByText("3 / 8 bytes")).toBeInTheDocument();
   });
 
-  it("switches the generated-byte text preview to Shift_JIS", () => {
+  it("keeps Shift_JIS text separate from a preceding numeric field", () => {
     const { container } = render(<App />);
     applyTemplate(container, {
       formatVersion: "0.1",
       name: "shift_jis_text",
+      defaultEndian: "big",
       defaultEncoding: "shift_jis",
       fields: [
         {
+          name: "temperatureCorrection",
+          type: "int16",
+          value: -125
+        },
+        {
           name: "shiftJisText",
           type: "string",
-          length: 8,
-          padding: "zero",
-          value: "通信"
+          length: 12,
+          padding: "space",
+          value: "試験機A"
         }
       ]
     });
 
-    expect(container.querySelector(".hex-text")).toHaveTextContent("...M....");
     fireEvent.change(screen.getByLabelText("プレビュー文字コード"), {
       target: { value: "shift_jis" }
     });
-    expect(container.querySelector(".hex-text")).toHaveTextContent("通信....");
+    expect(container.querySelector(".hex-text")).toHaveTextContent("試験機A");
   });
 });

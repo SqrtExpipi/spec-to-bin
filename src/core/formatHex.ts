@@ -18,13 +18,19 @@ export interface HexRow {
   decodedText: string;
 }
 
+export interface TextPreviewSegment {
+  offset: number;
+  size: number;
+}
+
 export function toHexRows(
   bytes: Uint8Array,
   width = 16,
-  textEncoding: TextPreviewEncoding = "ascii"
+  textEncoding: TextPreviewEncoding = "ascii",
+  segments: readonly TextPreviewSegment[] = []
 ): HexRow[] {
   const rows: HexRow[] = [];
-  const decodedRows = decodeTextRows(bytes, width, textEncoding);
+  const decodedRows = decodeTextRows(bytes, width, textEncoding, segments);
 
   for (let offset = 0; offset < bytes.length; offset += width) {
     const chunk = bytes.slice(offset, offset + width);
@@ -44,7 +50,8 @@ export function toHexRows(
 function decodeTextRows(
   bytes: Uint8Array,
   width: number,
-  encoding: TextPreviewEncoding
+  encoding: TextPreviewEncoding,
+  segments: readonly TextPreviewSegment[]
 ): string[] {
   if (encoding === "ascii") {
     const rows: string[] = [];
@@ -58,16 +65,64 @@ function decodeTextRows(
     return rows;
   }
 
-  const decoder = new TextDecoder(encoding);
-  const rows: string[] = [];
+  const rows = Array.from({ length: Math.ceil(bytes.length / width) }, () => "");
 
-  for (let offset = 0; offset < bytes.length; offset += width) {
-    const end = Math.min(offset + width, bytes.length);
-    const decoded = decoder.decode(bytes.subarray(offset, end), { stream: end < bytes.length });
-    rows.push(sanitizeDecodedText(decoded));
+  for (const segment of normalizeSegments(bytes.length, segments)) {
+    const decoder = new TextDecoder(encoding);
+    let position = segment.offset;
+    const segmentEnd = segment.offset + segment.size;
+
+    while (position < segmentEnd) {
+      const rowIndex = Math.floor(position / width);
+      const chunkEnd = Math.min(segmentEnd, (rowIndex + 1) * width);
+      const decoded = decoder.decode(bytes.subarray(position, chunkEnd), {
+        stream: chunkEnd < segmentEnd
+      });
+      rows[rowIndex] += sanitizeDecodedText(decoded);
+      position = chunkEnd;
+    }
   }
 
   return rows;
+}
+
+function normalizeSegments(
+  byteLength: number,
+  segments: readonly TextPreviewSegment[]
+): TextPreviewSegment[] {
+  if (segments.length === 0) {
+    return byteLength === 0 ? [] : [{ offset: 0, size: byteLength }];
+  }
+
+  const normalized: TextPreviewSegment[] = [];
+  let coveredUntil = 0;
+
+  for (const segment of [...segments].sort((left, right) => left.offset - right.offset)) {
+    const requestedStart = Math.min(byteLength, Math.max(0, segment.offset));
+    const requestedEnd = Math.min(
+      byteLength,
+      Math.max(requestedStart, segment.offset + segment.size)
+    );
+    const start = Math.max(coveredUntil, requestedStart);
+
+    if (start > coveredUntil) {
+      normalized.push({ offset: coveredUntil, size: start - coveredUntil });
+      coveredUntil = start;
+    }
+    if (requestedEnd > start) {
+      normalized.push({ offset: start, size: requestedEnd - start });
+      coveredUntil = requestedEnd;
+    }
+    if (coveredUntil >= byteLength) {
+      break;
+    }
+  }
+
+  if (coveredUntil < byteLength) {
+    normalized.push({ offset: coveredUntil, size: byteLength - coveredUntil });
+  }
+
+  return normalized;
 }
 
 function sanitizeDecodedText(value: string): string {
