@@ -1,0 +1,70 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Spec to BIN
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include customer specifications, credentials, internal protocol details, or production binary data. Use a minimal fictional JSON template when possible.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: App version shown in the header, release tag, or commit hash.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: Distribution
+      options:
+        - GitHub Pages / PWA
+        - Offline release ZIP
+        - Local development build
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: Microsoft Edge 140 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem
+      description: Describe what happened and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Load ...
+        3. Edit ...
+    validations:
+      required: true
+  - type: textarea
+    id: template
+    attributes:
+      label: Minimal fictional JSON template
+      description: Remove confidential and project-specific information before posting.
+      render: json
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional context
+      description: Add screenshots, validation messages, or exact expected and actual bytes when relevant.
+  - type: checkboxes
+    id: confidentiality
+    attributes:
+      label: Confidentiality check
+      options:
+        - label: I confirmed that this report contains no confidential or production data.
+          required: true

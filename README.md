@@ -63,6 +63,18 @@ It is not a general-purpose hex editor. The goal is to reduce manual hex editing
 - `ipv4`
 - `padding`
 
+## Supported browsers
+
+The current release targets the latest stable versions of Google Chrome and Microsoft Edge. Other browsers may work, but are not part of the v0.1 test scope.
+
+## Known limitations
+
+- CRC and checksum fields are not calculated automatically. Enter precomputed values as ordinary numeric or byte fields.
+- Existing BIN files cannot be parsed back into templates.
+- Repeat structures, variable-length structures, bit fields, floating-point fields, and conditional fields are not supported.
+- The web/PWA build must be served over HTTP(S). Use the release ZIP when direct `file://` and offline operation are required.
+- Preview and text-copy output are intentionally capped; larger valid binaries can still be saved within the generated-binary limit below.
+
 ## Quick start
 
 ```bash
