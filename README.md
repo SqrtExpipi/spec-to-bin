@@ -1,12 +1,21 @@
 # Spec to BIN
 
+[English](./README.md) | [日本語](./README.ja.md)
+
 Build test binaries from specs.
 
-Spec to BIN is a browser-based tool for creating communication packets, embedded settings, EEPROM images, initialization BIN files, and test payloads from structured JSON templates.
+Spec to BIN is a free, open-source browser tool for generating fixed-layout test binary files from shared JSON definitions. It is designed for communication packets, embedded settings, EEPROM images, initialization data, and test fixtures.
+
+Teams can version JSON templates in Git and reproduce the same binary from the same definition with the same Spec to BIN version. Processing stays in the browser: the app does not upload templates, field values, or generated BIN files. Use it on the web, install it as a PWA, or download a self-contained offline HTML release.
 
 It is not a general-purpose hex editor. The goal is to reduce manual hex editing by letting you define binary structure, edit values in a GUI, validate errors, preview bytes, and export `.bin` files.
 
-**[Open Spec to BIN](https://sqrtexpipi.github.io/spec-to-bin/)**
+- **[Open the web/PWA app](https://sqrtexpipi.github.io/spec-to-bin/)**
+- **[Download the offline release](https://github.com/SqrtExpipi/spec-to-bin/releases/latest)**
+- **[Read the user guide](./docs/user-guide.md)**
+- **[利用ガイド（日本語）](./docs/user-guide.ja.md)**
+
+An optional external chat AI can turn a specification into a draft JSON definition using the included prompt. Spec to BIN itself does not call an AI API: a person reviews the definition, and the app validates it and generates bytes deterministically in the browser.
 
 ![Spec to BIN field editor and Hex preview in the light theme](./docs/images/en-light.png)
 
@@ -36,6 +45,8 @@ It is not a general-purpose hex editor. The goal is to reduce manual hex editing
 - Load and save JSON binary templates
 - Edit names, types, sizes, formats, values, notes, and expected offsets in a table
 - Reorder, add, duplicate, and delete fields
+- Select multiple rows to copy, paste, move, delete, or expand a record block with numbered names
+- Generate fixed-length string test values by encoded byte length, including exact maximum and intentional overflow cases
 - Undo and redo edits, with unsaved-change warnings
 - Show offsets and byte sizes
 - Show field validation directly below the affected row
@@ -74,7 +85,8 @@ The current release targets the latest stable versions of Google Chrome and Micr
 
 - CRC and checksum fields are not calculated automatically. Enter precomputed values as ordinary numeric or byte fields.
 - Existing BIN files cannot be parsed back into templates. They can be compared with the current generated result.
-- Repeat structures, variable-length structures, bit fields, floating-point fields, and conditional fields are not supported.
+- JSON repeat structures are not supported. The GUI can expand selected rows into ordinary flat `fields`.
+- Variable-length structures, bit fields, floating-point fields, and conditional fields are not supported.
 - The web/PWA build must be served over HTTP(S). Use the release ZIP when direct `file://` and offline operation are required.
 - Preview and text-copy output are intentionally capped; larger valid binaries can still be saved within the generated-binary limit below.
 
@@ -99,7 +111,7 @@ npm run build
 npm run build:offline
 ```
 
-Open `dist-offline/index.html` directly in a browser. The JavaScript and CSS are embedded in that one file. Tagged GitHub releases package this output as an offline ZIP.
+Open `dist-offline/Spec-to-BIN-Offline.html` directly in a browser. The JavaScript and CSS are embedded in that one file. Tagged GitHub releases package it with a readme and license as `spec-to-bin-offline-vX.Y.Z.zip`.
 
 ## Test
 
@@ -153,12 +165,12 @@ Unknown JSON properties are preserved when possible and reported as warnings. Er
 ## Documentation
 
 - [User guide](./docs/user-guide.md)
-- [User guide (Japanese)](./docs/user-guide.ja.md)
+- [利用ガイド（日本語）](./docs/user-guide.ja.md)
 - [Template format](./docs/template-format.md)
 - [JSON Schema](./docs/binary-template.schema.json)
 - [AI prompt example (English)](./prompts/spec-to-bin-json.md)
 - [AI prompt example (Japanese)](./prompts/spec-to-bin-json.ja.md)
-- [Japanese README](./README.ja.md)
+- [README（日本語）](./README.ja.md)
 
 ## Deferred features
 
@@ -168,7 +180,7 @@ These are intentionally outside the first version:
 - TCP/UDP send
 - Existing BIN reverse parsing
 - CRC/checksum
-- repeat structures
+- repeat structures in the JSON format (GUI expansion to flat fields is supported)
 - lengthOf/countOf/offsetOf auto fields
 - batch generation
 - CLI

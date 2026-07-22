@@ -5,15 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Spec to BIN builds test binary files from structured JSON templates in your browser."
+      content="Free, open-source browser tool for generating fixed-layout test binary files from shared JSON definitions. Works as a PWA or offline HTML without uploading data."
     />
+    <link rel="canonical" href="https://sqrtexpipi.github.io/spec-to-bin/" />
+    <link rel="alternate" hreflang="en" href="https://sqrtexpipi.github.io/spec-to-bin/about.html" />
+    <link rel="alternate" hreflang="ja" href="https://sqrtexpipi.github.io/spec-to-bin/about.ja.html" />
+    <link rel="alternate" hreflang="x-default" href="https://sqrtexpipi.github.io/spec-to-bin/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Spec to BIN" />
+    <meta property="og:title" content="Spec to BIN - Offline Test Binary Generator" />
+    <meta
+      property="og:description"
+      content="Generate reproducible test binaries for communication packets, embedded settings, and EEPROM data from shared JSON definitions."
+    />
+    <meta property="og:url" content="https://sqrtexpipi.github.io/spec-to-bin/" />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/SqrtExpipi/spec-to-bin/main/docs/images/en-light.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#f4f6f8" />
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <link rel="icon" href="%BASE_URL%icon.svg" type="image/svg+xml" />
-    <title>Spec to BIN</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Spec to BIN",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web, Windows, macOS, Linux",
+        "softwareVersion": "0.1.0",
+        "url": "https://sqrtexpipi.github.io/spec-to-bin/",
+        "downloadUrl": "https://github.com/SqrtExpipi/spec-to-bin/releases",
+        "codeRepository": "https://github.com/SqrtExpipi/spec-to-bin",
+        "license": "https://opensource.org/license/mit",
+        "description": "A free, open-source browser tool for generating fixed-layout test binary files from shared JSON definitions. It supports offline use, PWA installation, validation, Hex preview, and Shift_JIS.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+    <title>Spec to BIN - Offline Test Binary Generator</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main>
+        <h1>Spec to BIN</h1>
+        <p>
+          Generate reproducible test binary files for communication packets, embedded settings,
+          EEPROM data, and fixed-layout test fixtures from shared JSON definitions.
+        </p>
+        <p>
+          Free and open source. Runs locally in the browser, installs as a PWA, and is available as
+          a self-contained offline HTML release. The app does not upload templates or generated BIN
+          files.
+        </p>
+        <nav aria-label="Product information">
+          <a href="./about.html">Product details</a>
+          <a href="./about.ja.html" lang="ja">日本語の説明</a>
+          <a href="https://github.com/SqrtExpipi/spec-to-bin">GitHub</a>
+        </nav>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

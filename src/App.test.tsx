@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import { templateLimits } from "./core";
+import { templateLimits, type FieldDefinition } from "./core";
 
 describe("App editor workflow", () => {
   beforeEach(() => {
@@ -11,12 +11,18 @@ describe("App editor workflow", () => {
   });
 
   function applyTemplate(container: HTMLElement, template: unknown) {
-    fireEvent.click(screen.getByRole("button", { name: "JSONを直接編集" }));
+    fireEvent.click(
+      screen.queryByRole("button", { name: "JSONを直接編集" }) ??
+        screen.getByRole("button", { name: "Edit JSON" })
+    );
     const textarea = container.querySelector<HTMLTextAreaElement>(".json-panel textarea");
     fireEvent.change(textarea as HTMLTextAreaElement, {
       target: { value: JSON.stringify(template) }
     });
-    fireEvent.click(screen.getByRole("button", { name: "JSONを反映" }));
+    fireEvent.click(
+      screen.queryByRole("button", { name: "JSONを反映" }) ??
+        screen.getByRole("button", { name: "Apply JSON" })
+    );
   }
 
   it("starts with a blank template and keeps samples behind Reset", () => {
@@ -49,9 +55,10 @@ describe("App editor workflow", () => {
   });
 
   it("places BIN save first and gives it the primary action style", () => {
-    render(<App />);
-    const saveBin = screen.getByRole("button", { name: "BINファイルを保存" });
-    const loadJson = screen.getByRole("button", { name: "JSONファイルを開く" });
+    const { container } = render(<App />);
+    const toolbar = container.querySelector(".toolbar") as HTMLElement;
+    const saveBin = within(toolbar).getByRole("button", { name: "BINファイルを保存" });
+    const loadJson = within(toolbar).getByRole("button", { name: "JSONファイルを開く" });
 
     expect(saveBin).toHaveClass("primary");
     expect(loadJson).not.toHaveClass("primary");
@@ -282,4 +289,166 @@ describe("App editor workflow", () => {
     expect(within(dialog).getByText("01")).toBeInTheDocument();
     expect(within(dialog).getByText("02")).toBeInTheDocument();
   });
+
+  it("repeats selected rows as numbered flat fields", async () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "records",
+      defaultEncoding: "shift_jis",
+      fields: [
+        { name: "name", type: "string", length: 4, value: "A" },
+        { name: "code", type: "uint8", value: 1 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select name" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Repeat" }));
+    fireEvent.change(screen.getByLabelText("Total record count (including the original)"), {
+      target: { value: "3" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Expand rows" }));
+
+    expect(container.querySelectorAll(".field-row-group")).toHaveLength(6);
+    const json = JSON.parse(
+      container.querySelector<HTMLTextAreaElement>(".json-panel textarea")?.value ?? "{}"
+    );
+    expect(json.fields.map((field: FieldDefinition) => field.name)).toEqual([
+      "name_01",
+      "code_01",
+      "name_02",
+      "code_02",
+      "name_03",
+      "code_03"
+    ]);
+    expect(json.fields.map((field: FieldDefinition) => field.offset)).toEqual([0, 4, 5, 9, 10, 14]);
+  });
+
+  it("generates encoding-aware test values for selected string rows", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "strings",
+      defaultEncoding: "shift_jis",
+      fields: [
+        { name: "oddText", type: "string", length: 7, value: "" },
+        { name: "number", type: "uint8", value: 1 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select oddText" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate test values" }));
+    fireEvent.change(screen.getByLabelText("Generation mode"), { target: { value: "fullWidthMax" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate values" }));
+
+    expect(container.querySelector<HTMLInputElement>(".value-input")).toHaveValue("あああA");
+    expect(screen.getByText("7 / 7 bytes")).toBeInTheDocument();
+  });
+
+  it("copies and pastes selected rows inside the editor", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "copy_rows",
+      fields: [{ name: "item", type: "uint8", value: 1 }]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select item" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+
+    expect(container.querySelectorAll(".field-row-group")).toHaveLength(2);
+    expect(container.querySelectorAll<HTMLInputElement>(".field-name")[1]).toHaveValue("item_copy");
+  });
+
+  it("moves and deletes the same selected rows as a group", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "move_rows",
+      fields: [
+        { name: "first", type: "uint8", value: 1 },
+        { name: "second", type: "uint8", value: 2 },
+        { name: "third", type: "uint8", value: 3 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select second" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move selected rows up" }));
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "second",
+      "first",
+      "third"
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "first",
+      "third"
+    ]);
+  });
+
+  it("loads one JSON file dropped anywhere on the app", async () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    const shell = container.querySelector(".app-shell") as HTMLElement;
+    const file = jsonFile({ formatVersion: "0.1", name: "dropped", fields: [] });
+
+    fireEvent.dragEnter(shell, { dataTransfer: { types: ["Files"], files: [file] } });
+    expect(screen.getByText("Drop JSON to open")).toBeInTheDocument();
+
+    fireEvent.drop(shell, { dataTransfer: { types: ["Files"], files: [file] } });
+    await waitFor(() => expect(screen.getByLabelText("Template name")).toHaveValue("dropped"));
+    expect(screen.queryByText("Drop JSON to open")).not.toBeInTheDocument();
+  });
+
+  it("rejects multiple files and non-JSON files dropped on the app", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    const shell = container.querySelector(".app-shell") as HTMLElement;
+    const first = jsonFile({ formatVersion: "0.1", name: "first", fields: [] });
+    const second = jsonFile({ formatVersion: "0.1", name: "second", fields: [] }, "second.json");
+
+    fireEvent.drop(shell, { dataTransfer: { types: ["Files"], files: [first, second] } });
+    expect(screen.getByText("Drop one JSON file at a time.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Template name")).toHaveValue("new_template");
+
+    fireEvent.drop(shell, {
+      dataTransfer: { types: ["Files"], files: [jsonFile({}, "definition.txt")] }
+    });
+    expect(screen.getByText("Drop a .json file.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Template name")).toHaveValue("new_template");
+  });
+
+  it("keeps unsaved changes when a dropped JSON replacement is cancelled", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { container } = render(<App />);
+    const nameInput = screen.getByLabelText("Template name");
+    fireEvent.change(nameInput, { target: { value: "working_copy" } });
+
+    fireEvent.drop(container.querySelector(".app-shell") as HTMLElement, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [jsonFile({ formatVersion: "0.1", name: "replacement", fields: [] })]
+      }
+    });
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(nameInput).toHaveValue("working_copy");
+    confirm.mockRestore();
+  });
 });
+
+function jsonFile(value: unknown, name = "definition.json"): File {
+  const file = new File([JSON.stringify(value)], name, { type: "application/json" });
+  Object.defineProperty(file, "text", {
+    value: () => Promise.resolve(JSON.stringify(value))
+  });
+  return file;
+}
