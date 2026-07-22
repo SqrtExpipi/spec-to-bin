@@ -168,6 +168,8 @@ Unknown JSON properties are preserved when possible and reported as warnings. Er
 - [利用ガイド（日本語）](./docs/user-guide.ja.md)
 - [Template format](./docs/template-format.md)
 - [JSON Schema](./docs/binary-template.schema.json)
+- [Changelog](./CHANGELOG.md)
+- [Release checklist](./docs/release-checklist.md)
 - [AI prompt example (English)](./prompts/spec-to-bin-json.md)
 - [AI prompt example (Japanese)](./prompts/spec-to-bin-json.ja.md)
 - [README（日本語）](./README.ja.md)
