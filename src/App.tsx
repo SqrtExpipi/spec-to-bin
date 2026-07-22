@@ -1,7 +1,11 @@
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Braces,
   Clipboard,
+  ClipboardPaste,
+  Copy,
   Download,
   FileInput,
   Info,
@@ -9,10 +13,13 @@ import {
   Moon,
   Plus,
   RotateCcw,
+  Repeat2,
   Redo2,
   Save,
   Sun,
+  Trash2,
   Undo2,
+  WandSparkles,
   X,
   XCircle
 } from "lucide-react";
@@ -34,6 +41,13 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import sampleTemplate from "../examples/basic-fields.json";
 import { getAiPrompt } from "./aiPrompt";
+import {
+  generateFixedStringValue,
+  repeatSelectedFields,
+  type FullWidthRemainder,
+  type RepeatNameMode,
+  type TestValueMode
+} from "./batchFields";
 import { HexPreviewPanel } from "./components/HexPreviewPanel";
 import { SortableFieldRows } from "./components/SortableFieldRows";
 import {
@@ -88,6 +102,16 @@ export function App() {
   const [resetOpen, setResetOpen] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [textPreviewEncoding, setTextPreviewEncoding] = useState<TextPreviewEncoding>("ascii");
+  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
+  const [fieldClipboard, setFieldClipboard] = useState<FieldDefinition[]>([]);
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [repeatCount, setRepeatCount] = useState(2);
+  const [repeatNameMode, setRepeatNameMode] = useState<RepeatNameMode>("appendPadded");
+  const [repeatOffsets, setRepeatOffsets] = useState(true);
+  const [testValueOpen, setTestValueOpen] = useState(false);
+  const [testValueMode, setTestValueMode] = useState<TestValueMode>("asciiMax");
+  const [testValueFill, setTestValueFill] = useState("-");
+  const [fullWidthRemainder, setFullWidthRemainder] = useState<FullWidthRemainder>("ascii");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
@@ -184,6 +208,13 @@ export function App() {
     () => result.layouts.map((layout) => fieldIds[layout.index] ?? createFieldId()),
     [fieldIds, result.layouts]
   );
+  const selectedFieldIndices = useMemo(
+    () =>
+      fieldIds
+        .map((id, index) => (selectedFieldIds.includes(id) ? index : -1))
+        .filter((index) => index >= 0),
+    [fieldIds, selectedFieldIds]
+  );
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 }
@@ -218,7 +249,7 @@ export function App() {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!copyOpen && !resetOpen) {
+    if (!copyOpen && !resetOpen && !repeatOpen && !testValueOpen) {
       return;
     }
 
@@ -226,11 +257,13 @@ export function App() {
       if (event.key === "Escape") {
         setCopyOpen(false);
         setResetOpen(false);
+        setRepeatOpen(false);
+        setTestValueOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [copyOpen, resetOpen]);
+  }, [copyOpen, repeatOpen, resetOpen, testValueOpen]);
 
   function showToast(kind: NonNullable<ToastState>["kind"], message: string) {
     setToast({ kind, message });
@@ -253,6 +286,9 @@ export function App() {
     setSelectedFieldIndex(0);
     setCopyOpen(false);
     setResetOpen(false);
+    setRepeatOpen(false);
+    setTestValueOpen(false);
+    setSelectedFieldIds([]);
     setDraftFieldErrors({});
     if (markClean) {
       setSavedSnapshot(serializeTemplate(next));
@@ -273,6 +309,7 @@ export function App() {
     );
     setTemplateInputState(previous.value);
     setFieldIds(createFieldIds(getTemplateFieldCount(previous.value)));
+    setSelectedFieldIds([]);
     setDraftFieldErrors({});
   }
 
@@ -287,6 +324,7 @@ export function App() {
     );
     setTemplateInputState(next.value);
     setFieldIds(createFieldIds(getTemplateFieldCount(next.value)));
+    setSelectedFieldIds([]);
     setDraftFieldErrors({});
   }
 
@@ -382,13 +420,15 @@ export function App() {
   function setFields(
     fields: FieldDefinition[],
     nextSelectedIndex: number,
-    nextFieldIds: string[] = fieldIds
+    nextFieldIds: string[] = fieldIds,
+    nextBatchSelection: string[] = selectedFieldIds
   ) {
     setTemplateInput({
       ...template,
       fields
     });
     setFieldIds(nextFieldIds);
+    setSelectedFieldIds(nextBatchSelection.filter((id) => nextFieldIds.includes(id)));
     const validIds = new Set(nextFieldIds);
     setDraftFieldErrors((errors) =>
       Object.fromEntries(
@@ -469,6 +509,161 @@ export function App() {
 
   function clearNeedsReview(index: number) {
     updateField(index, { needsReview: undefined });
+  }
+
+  function toggleFieldSelection(id: string) {
+    setSelectedFieldIds((ids) =>
+      ids.includes(id) ? ids.filter((selectedId) => selectedId !== id) : [...ids, id]
+    );
+  }
+
+  function selectAllFields(checked: boolean) {
+    setSelectedFieldIds(checked ? [...fieldIds] : []);
+  }
+
+  function copySelectedFields() {
+    const copied = selectedFieldIndices.map((index) => ({ ...template.fields[index] }));
+    if (copied.length === 0) {
+      return;
+    }
+    setFieldClipboard(copied);
+    showToast("success", t("toast.rowsCopied", { count: copied.length }));
+  }
+
+  function pasteFields() {
+    if (fieldClipboard.length === 0) {
+      return;
+    }
+    const insertIndex = selectedFieldIndices.length > 0 ? Math.max(...selectedFieldIndices) + 1 : template.fields.length;
+    const fields = [...template.fields];
+    const nextIds = [...fieldIds];
+    const insertedIds: string[] = [];
+    const existing = [...fields];
+    const copies = fieldClipboard.map((field) => {
+      const copy = {
+        ...field,
+        name: makeUniqueFieldName(existing, `${field.name || "field"}_copy`),
+        offset: undefined
+      };
+      existing.push(copy);
+      insertedIds.push(createFieldId());
+      return copy;
+    });
+    fields.splice(insertIndex, 0, ...copies);
+    nextIds.splice(insertIndex, 0, ...insertedIds);
+    setFields(fields, insertIndex, nextIds, insertedIds);
+  }
+
+  function duplicateSelectedFields() {
+    const copied = selectedFieldIndices.map((index) => ({ ...template.fields[index] }));
+    if (copied.length === 0) {
+      return;
+    }
+    const insertIndex = Math.max(...selectedFieldIndices) + 1;
+    const existing = [...template.fields];
+    const insertedIds: string[] = [];
+    const copies = copied.map((field) => {
+      const copy = {
+        ...field,
+        name: makeUniqueFieldName(existing, `${field.name || "field"}_copy`),
+        offset: undefined
+      };
+      existing.push(copy);
+      insertedIds.push(createFieldId());
+      return copy;
+    });
+    const fields = [...template.fields];
+    const nextIds = [...fieldIds];
+    fields.splice(insertIndex, 0, ...copies);
+    nextIds.splice(insertIndex, 0, ...insertedIds);
+    setFields(fields, insertIndex, nextIds, insertedIds);
+  }
+
+  function deleteSelectedFields() {
+    const selected = new Set(selectedFieldIds);
+    const fields = template.fields.filter((_, index) => !selected.has(fieldIds[index]));
+    const nextIds = fieldIds.filter((id) => !selected.has(id));
+    setFields(fields, selectedFieldIndices[0] ?? 0, nextIds, []);
+  }
+
+  function moveSelectedFields(direction: "up" | "down") {
+    const fields = [...template.fields];
+    const nextIds = [...fieldIds];
+    const selected = new Set(selectedFieldIds);
+    if (direction === "up") {
+      for (let index = 1; index < nextIds.length; index += 1) {
+        if (selected.has(nextIds[index]) && !selected.has(nextIds[index - 1])) {
+          [fields[index - 1], fields[index]] = [fields[index], fields[index - 1]];
+          [nextIds[index - 1], nextIds[index]] = [nextIds[index], nextIds[index - 1]];
+        }
+      }
+    } else {
+      for (let index = nextIds.length - 2; index >= 0; index -= 1) {
+        if (selected.has(nextIds[index]) && !selected.has(nextIds[index + 1])) {
+          [fields[index], fields[index + 1]] = [fields[index + 1], fields[index]];
+          [nextIds[index], nextIds[index + 1]] = [nextIds[index + 1], nextIds[index]];
+        }
+      }
+    }
+    const activeIndex = nextIds.findIndex((id) => selected.has(id));
+    setFields(fields, activeIndex, nextIds, selectedFieldIds);
+  }
+
+  function applyRepeat() {
+    if (!areContiguous(selectedFieldIndices)) {
+      showToast("error", t("error.repeatContiguous"));
+      return;
+    }
+    const repeated = repeatSelectedFields(template.fields, selectedFieldIndices, {
+      totalCount: repeatCount,
+      nameMode: repeatNameMode,
+      recalculateOffsets: repeatOffsets
+    });
+    if (repeated.fields.length > templateLimits.maxFields) {
+      showToast("error", t("error.tooManyRepeatedFields", { max: templateLimits.maxFields }));
+      return;
+    }
+    const nextIds = createFieldIds(repeated.fields.length);
+    const nextSelection = repeated.generatedIndices.map((index) => nextIds[index]);
+    setFields(repeated.fields, repeated.generatedIndices[0] ?? 0, nextIds, nextSelection);
+    setRepeatOpen(false);
+    showToast("success", t("toast.rowsRepeated", { count: repeatCount }));
+  }
+
+  function applyTestValues() {
+    const selected = new Set(selectedFieldIndices);
+    let generated = 0;
+    let skipped = 0;
+    const fields = template.fields.map((field, index) => {
+      if (!selected.has(index) || field.type !== "string" || field.fixed) {
+        if (selected.has(index)) {
+          skipped += 1;
+        }
+        return field;
+      }
+      try {
+        const nextField = {
+          ...field,
+          value: generateFixedStringValue(field, template, {
+            mode: testValueMode,
+            customFill: testValueFill,
+            fullWidthRemainder
+          })
+        };
+        generated += 1;
+        return nextField;
+      } catch {
+        skipped += 1;
+        return field;
+      }
+    });
+    if (generated === 0) {
+      showToast("error", t("error.noTestValueTargets"));
+      return;
+    }
+    setFields(fields, selectedFieldIndices[0] ?? 0);
+    setTestValueOpen(false);
+    showToast("success", t("toast.testValuesGenerated", { count: generated, skipped }));
   }
 
   function applyReset(mode: ResetMode) {
@@ -752,13 +947,73 @@ export function App() {
             </div>
           </div>
 
+          {selectedFieldIds.length > 0 ? (
+            <div className="selection-toolbar" aria-label={t("batch.toolbarLabel")}>
+              <strong>{t("batch.selected", { count: selectedFieldIds.length })}</strong>
+              <div className="selection-actions">
+                <button type="button" className="button compact" onClick={duplicateSelectedFields}>
+                  <Copy size={14} />
+                  {t("batch.duplicate")}
+                </button>
+                <button type="button" className="button compact" onClick={copySelectedFields}>
+                  <Clipboard size={14} />
+                  {t("batch.copy")}
+                </button>
+                <button
+                  type="button"
+                  className="button compact"
+                  disabled={fieldClipboard.length === 0}
+                  onClick={pasteFields}
+                >
+                  <ClipboardPaste size={14} />
+                  {t("batch.paste")}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={t("batch.moveUp")}
+                  aria-label={t("batch.moveUp")}
+                  onClick={() => moveSelectedFields("up")}
+                >
+                  <ArrowUp size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={t("batch.moveDown")}
+                  aria-label={t("batch.moveDown")}
+                  onClick={() => moveSelectedFields("down")}
+                >
+                  <ArrowDown size={15} />
+                </button>
+                <button type="button" className="button compact" onClick={() => setRepeatOpen(true)}>
+                  <Repeat2 size={14} />
+                  {t("batch.repeat")}
+                </button>
+                <button type="button" className="button compact" onClick={() => setTestValueOpen(true)}>
+                  <WandSparkles size={14} />
+                  {t("batch.generate")}
+                </button>
+                <button type="button" className="button compact danger-button" onClick={deleteSelectedFields}>
+                  <Trash2 size={14} />
+                  {t("batch.delete")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
             <div className="table-wrap">
               <table className="field-table">
               <thead>
                 <tr>
                   <th className="drag-heading">
-                    <span className="sr-only">{t("table.drag")}</span>
+                    <input
+                      type="checkbox"
+                      aria-label={t("batch.selectAll")}
+                      checked={fieldIds.length > 0 && selectedFieldIds.length === fieldIds.length}
+                      onChange={(event) => selectAllFields(event.target.checked)}
+                    />
                   </th>
                   <th>
                     <HeaderLabel label={t("table.offset")} help={t("help.offset")} />
@@ -820,6 +1075,8 @@ export function App() {
                         key={sortableFieldIds[layout.index]}
                         layout={layout}
                         locale={locale}
+                        batchSelected={selectedFieldIds.includes(sortableFieldIds[layout.index])}
+                        toggleBatchSelection={toggleFieldSelection}
                         selected={layout.index === selectedFieldIndex}
                         setSelectedFieldIndex={setSelectedFieldIndex}
                         setDraftFieldError={setDraftFieldError}
@@ -960,6 +1217,116 @@ export function App() {
                 <strong>{t("reset.sample")}</strong>
                 <span>{t("reset.sampleDescription")}</span>
               </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {repeatOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setRepeatOpen(false)}>
+          <section
+            className="modal-dialog batch-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="repeat-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <div>
+                <h2 id="repeat-dialog-title">{t("repeat.title")}</h2>
+                <p>{t("repeat.description", { count: selectedFieldIds.length })}</p>
+              </div>
+              <button type="button" className="icon-button" aria-label={t("copy.close")} onClick={() => setRepeatOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="batch-form">
+              <label>
+                <span>{t("repeat.totalCount")}</span>
+                <input
+                  type="number"
+                  min={2}
+                  max={100}
+                  value={repeatCount}
+                  onChange={(event) => setRepeatCount(Math.max(2, Math.min(100, Number(event.target.value) || 2)))}
+                />
+              </label>
+              <label>
+                <span>{t("repeat.nameMode")}</span>
+                <select value={repeatNameMode} onChange={(event) => setRepeatNameMode(event.target.value as RepeatNameMode)}>
+                  <option value="keep">{t("repeat.name.keep")}</option>
+                  <option value="append">{t("repeat.name.append")}</option>
+                  <option value="appendPadded">{t("repeat.name.appendPadded")}</option>
+                  <option value="increment">{t("repeat.name.increment")}</option>
+                </select>
+              </label>
+              <label className="check-label">
+                <input type="checkbox" checked={repeatOffsets} onChange={(event) => setRepeatOffsets(event.target.checked)} />
+                <span>{t("repeat.recalculateOffsets")}</span>
+              </label>
+              <div className="modal-actions">
+                <button type="button" className="button" onClick={() => setRepeatOpen(false)}>{t("reset.cancel")}</button>
+                <button type="button" className="button primary" onClick={applyRepeat}>{t("repeat.apply")}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {testValueOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setTestValueOpen(false)}>
+          <section
+            className="modal-dialog batch-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="test-value-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <div>
+                <h2 id="test-value-dialog-title">{t("testValue.title")}</h2>
+                <p>{t("testValue.description")}</p>
+              </div>
+              <button type="button" className="icon-button" aria-label={t("copy.close")} onClick={() => setTestValueOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="batch-form">
+              <label>
+                <span>{t("testValue.mode")}</span>
+                <select value={testValueMode} onChange={(event) => setTestValueMode(event.target.value as TestValueMode)}>
+                  <option value="asciiMax">{t("testValue.asciiMax")}</option>
+                  <option value="fullWidthMax">{t("testValue.fullWidthMax")}</option>
+                  <option value="keepAndFill">{t("testValue.keepAndFill")}</option>
+                  <option value="customFill">{t("testValue.customFill")}</option>
+                  <option value="alphabet">{t("testValue.alphabet")}</option>
+                  <option value="digits">{t("testValue.digits")}</option>
+                  <option value="hyphen">{t("testValue.hyphen")}</option>
+                  <option value="empty">{t("testValue.empty")}</option>
+                  <option value="leaveOneByte">{t("testValue.leaveOneByte")}</option>
+                  <option value="overflowOneByte">{t("testValue.overflowOneByte")}</option>
+                </select>
+              </label>
+              {testValueMode === "keepAndFill" || testValueMode === "customFill" ? (
+                <label>
+                  <span>{t("testValue.fill")}</span>
+                  <input value={testValueFill} onChange={(event) => setTestValueFill(event.target.value)} />
+                </label>
+              ) : null}
+              {testValueMode === "fullWidthMax" ? (
+                <label>
+                  <span>{t("testValue.remainder")}</span>
+                  <select value={fullWidthRemainder} onChange={(event) => setFullWidthRemainder(event.target.value as FullWidthRemainder)}>
+                    <option value="ascii">{t("testValue.remainder.ascii")}</option>
+                    <option value="short">{t("testValue.remainder.short")}</option>
+                    <option value="error">{t("testValue.remainder.error")}</option>
+                  </select>
+                </label>
+              ) : null}
+              <div className="modal-actions">
+                <button type="button" className="button" onClick={() => setTestValueOpen(false)}>{t("reset.cancel")}</button>
+                <button type="button" className="button primary" onClick={applyTestValues}>{t("testValue.apply")}</button>
+              </div>
             </div>
           </section>
         </div>
@@ -1157,4 +1524,8 @@ function parseIntegerInput(value: string): number | undefined {
 
 function safeFileName(value: string): string {
   return value.replace(/[^a-z0-9._-]+/gi, "_").replace(/^_+|_+$/g, "") || "spec-to-bin";
+}
+
+function areContiguous(indices: number[]): boolean {
+  return indices.every((index, position) => position === 0 || index === indices[position - 1] + 1);
 }
