@@ -25,7 +25,7 @@ describe("App editor workflow", () => {
     );
   }
 
-  it("starts with a blank template and keeps samples behind Reset", () => {
+  it("starts with a blank template and keeps samples in the empty state", () => {
     const { container } = render(<App />);
 
     expect(screen.getByText("仕様書から、テスト用バイナリファイルを作る。")).toBeInTheDocument();
@@ -34,9 +34,41 @@ describe("App editor workflow", () => {
     expect(screen.getByText("まだbyteがありません。項目を追加するとプレビューされます。")).toBeInTheDocument();
     expect(screen.queryByText("ローカル処理。アップロードなし。テレメトリなし。")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "リセット" }));
-    fireEvent.click(screen.getByText("サンプルを読み込む").closest("button") as HTMLButtonElement);
+    fireEvent.click(screen.getByRole("button", { name: "サンプルを開く" }));
     expect(screen.getByLabelText("テンプレート名")).toHaveValue("basic_fields");
+  });
+
+  it("starts a new template and can restore the last saved definition", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    const nameInput = screen.getByLabelText("Template name");
+
+    fireEvent.change(nameInput, { target: { value: "working_copy" } });
+    fireEvent.click(screen.getByRole("button", { name: "Restore saved" }));
+    expect(nameInput).toHaveValue("new_template");
+
+    fireEvent.change(nameInput, { target: { value: "another_copy" } });
+    fireEvent.click(screen.getByRole("button", { name: "New template" }));
+    expect(nameInput).toHaveValue("new_template");
+    expect(screen.queryByText("Unsaved")).not.toBeInTheDocument();
+    expect(confirm).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
+  });
+
+  it("keeps JSON syntax errors visible with a location", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit JSON" }));
+    const textarea = container.querySelector<HTMLTextAreaElement>(".json-panel textarea");
+
+    fireEvent.change(textarea as HTMLTextAreaElement, {
+      target: { value: "{\n  \"formatVersion\": \"0.1\",\n  broken\n}" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply JSON" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/Invalid JSON near line \d+, column \d+\./);
+    expect(screen.getByRole("button", { name: "Save JSON file" })).toBeDisabled();
   });
 
   it("places the compact Hex preview before the field table", () => {
@@ -365,6 +397,37 @@ describe("App editor workflow", () => {
     expect(container.querySelectorAll<HTMLInputElement>(".field-name")[1]).toHaveValue("item_copy");
   });
 
+  it("pastes copied rows below the active row instead of below the batch selection", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "paste_anchor",
+      fields: [
+        { name: "first", type: "uint8", value: 1 },
+        { name: "second", type: "uint8", value: 2 },
+        { name: "third", type: "uint8", value: 3 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    const rows = container.querySelectorAll(".field-row-group tr");
+    fireEvent.focus(container.querySelectorAll<HTMLInputElement>(".field-name")[2]);
+    expect(rows[0]).toHaveClass("batch-selected");
+    expect(rows[0]).not.toHaveClass("active-row");
+    expect(rows[2]).toHaveClass("active-row");
+    expect(rows[2]).not.toHaveClass("batch-selected");
+    fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "first",
+      "second",
+      "third",
+      "first_copy"
+    ]);
+  });
+
   it("moves and deletes the same selected rows as a group", () => {
     localStorage.setItem("spec-to-bin.locale", "en");
     const { container } = render(<App />);
@@ -388,6 +451,12 @@ describe("App editor workflow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "first",
+      "third"
+    ]);
+    fireEvent.click(container.querySelector(".toast button") as HTMLButtonElement);
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "second",
       "first",
       "third"
     ]);

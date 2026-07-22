@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FileInput,
+  FilePlus2,
   Info,
   Monitor,
   Moon,
@@ -71,10 +72,14 @@ import { detectInitialLocale, saveLocale, translate, type Locale } from "./i18n"
 import { applyTheme, detectInitialTheme, saveTheme, type ThemeMode } from "./theme";
 import { appVersion } from "./version";
 
-type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
-type ResetMode = "blank" | "sample";
+type ToastState = {
+  kind: "success" | "error" | "info";
+  message: string;
+  action?: "undo";
+} | null;
 type HistoryEntry = { value: unknown; snapshot: string };
 type DraftFieldErrorKind = "offset" | "length";
+type TestValueCandidate = { index: number; name: string; value?: string; reason?: string };
 
 const issueKeyPrefix = "issue.";
 const maxHistoryEntries = 50;
@@ -98,11 +103,11 @@ export function App() {
   const [selectedFieldIndex, setSelectedFieldIndex] = useState(0);
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonText, setJsonText] = useState(() => JSON.stringify(blankTemplate, null, 2));
+  const [jsonDraftDirty, setJsonDraftDirty] = useState(false);
   const [locale, setLocale] = useState<Locale>(() => detectInitialLocale());
   const [theme, setTheme] = useState<ThemeMode>(() => detectInitialTheme());
   const [toast, setToast] = useState<ToastState>(null);
   const [copyOpen, setCopyOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [textPreviewEncoding, setTextPreviewEncoding] = useState<TextPreviewEncoding>("ascii");
   const [comparison, setComparison] = useState<BinaryComparison | null>(null);
@@ -117,8 +122,9 @@ export function App() {
   const [repeatOffsets, setRepeatOffsets] = useState(true);
   const [testValueOpen, setTestValueOpen] = useState(false);
   const [testValueMode, setTestValueMode] = useState<TestValueMode>("asciiMax");
-  const [testValueFill, setTestValueFill] = useState("-");
+  const [testValueFill, setTestValueFill] = useState("A");
   const [fullWidthRemainder, setFullWidthRemainder] = useState<FullWidthRemainder>("ascii");
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const [jsonDragActive, setJsonDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonDragDepth = useRef(0);
@@ -127,7 +133,7 @@ export function App() {
     translate(locale, key, params);
   const currentSnapshot = useMemo(() => serializeTemplate(templateInput), [templateInput]);
   const hasDraftErrors = Object.keys(draftFieldErrors).length > 0;
-  const isDirty = currentSnapshot !== savedSnapshot || hasDraftErrors;
+  const isDirty = currentSnapshot !== savedSnapshot || hasDraftErrors || jsonDraftDirty;
 
   useEffect(() => {
     applyTheme(theme);
@@ -139,14 +145,17 @@ export function App() {
   }, [locale]);
 
   useEffect(() => {
-    setJsonText(JSON.stringify(templateInput, null, 2));
-  }, [templateInput]);
+    if (!jsonDraftDirty) {
+      setJsonText(JSON.stringify(templateInput, null, 2));
+      setJsonError(null);
+    }
+  }, [jsonDraftDirty, templateInput]);
 
   useEffect(() => {
     if (!toast) {
       return;
     }
-    const timer = window.setTimeout(() => setToast(null), 2800);
+    const timer = window.setTimeout(() => setToast(null), toast.action ? 6000 : 2800);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
@@ -258,14 +267,13 @@ export function App() {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!copyOpen && !resetOpen && !comparison && !repeatOpen && !testValueOpen) {
+    if (!copyOpen && !comparison && !repeatOpen && !testValueOpen) {
       return;
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setCopyOpen(false);
-        setResetOpen(false);
         setComparison(null);
         setRepeatOpen(false);
         setTestValueOpen(false);
@@ -273,10 +281,14 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [comparison, copyOpen, repeatOpen, resetOpen, testValueOpen]);
+  }, [comparison, copyOpen, repeatOpen, testValueOpen]);
 
-  function showToast(kind: NonNullable<ToastState>["kind"], message: string) {
-    setToast({ kind, message });
+  function showToast(
+    kind: NonNullable<ToastState>["kind"],
+    message: string,
+    action?: NonNullable<ToastState>["action"]
+  ) {
+    setToast({ kind, message, action });
   }
 
   function setTemplateInput(next: unknown) {
@@ -295,11 +307,12 @@ export function App() {
     setFieldIds(createFieldIds(getTemplateFieldCount(next)));
     setSelectedFieldIndex(0);
     setCopyOpen(false);
-    setResetOpen(false);
     setRepeatOpen(false);
     setTestValueOpen(false);
     setSelectedFieldIds([]);
     setDraftFieldErrors({});
+    setJsonDraftDirty(false);
+    setJsonError(null);
     if (markClean) {
       setSavedSnapshot(serializeTemplate(next));
     }
@@ -544,7 +557,7 @@ export function App() {
     if (fieldClipboard.length === 0) {
       return;
     }
-    const insertIndex = selectedFieldIndices.length > 0 ? Math.max(...selectedFieldIndices) + 1 : template.fields.length;
+    const insertIndex = Math.min(template.fields.length, selectedFieldIndex + 1);
     const fields = [...template.fields];
     const nextIds = [...fieldIds];
     const insertedIds: string[] = [];
@@ -590,16 +603,19 @@ export function App() {
   }
 
   function deleteSelectedFields() {
+    const deletedCount = selectedFieldIds.length;
     const selected = new Set(selectedFieldIds);
     const fields = template.fields.filter((_, index) => !selected.has(fieldIds[index]));
     const nextIds = fieldIds.filter((id) => !selected.has(id));
     setFields(fields, selectedFieldIndices[0] ?? 0, nextIds, []);
+    showToast("success", t("toast.rowsDeleted", { count: deletedCount }), "undo");
   }
 
   function moveSelectedFields(direction: "up" | "down") {
     const fields = [...template.fields];
     const nextIds = [...fieldIds];
     const selected = new Set(selectedFieldIds);
+    const activeId = fieldIds[selectedFieldIndex];
     if (direction === "up") {
       for (let index = 1; index < nextIds.length; index += 1) {
         if (selected.has(nextIds[index]) && !selected.has(nextIds[index - 1])) {
@@ -615,8 +631,8 @@ export function App() {
         }
       }
     }
-    const activeIndex = nextIds.findIndex((id) => selected.has(id));
-    setFields(fields, activeIndex, nextIds, selectedFieldIds);
+    const activeIndex = nextIds.indexOf(activeId);
+    setFields(fields, activeIndex >= 0 ? activeIndex : 0, nextIds, selectedFieldIds);
   }
 
   function applyRepeat() {
@@ -640,62 +656,97 @@ export function App() {
     showToast("success", t("toast.rowsRepeated", { count: repeatCount }));
   }
 
-  function applyTestValues() {
-    const selected = new Set(selectedFieldIndices);
-    let generated = 0;
-    let skipped = 0;
-    const fields = template.fields.map((field, index) => {
-      if (!selected.has(index) || field.type !== "string" || field.fixed) {
-        if (selected.has(index)) {
-          skipped += 1;
-        }
-        return field;
+  function getTestValueCandidates(): TestValueCandidate[] {
+    return selectedFieldIndices.map((index) => {
+      const field = template.fields[index];
+      const name = field.name || t("field.unnamed");
+      if (field.type !== "string") {
+        return { index, name, reason: t("testValue.reason.notString") };
+      }
+      if (field.fixed) {
+        return { index, name, reason: t("testValue.reason.fixed") };
+      }
+      if (!Number.isInteger(field.length) || (field.length ?? 0) < 0) {
+        return { index, name, reason: t("testValue.reason.length") };
+      }
+      if ((field.encoding ?? template.defaultEncoding ?? "unknown") === "unknown") {
+        return { index, name, reason: t("testValue.reason.encoding") };
       }
       try {
-        const nextField = {
-          ...field,
+        return {
+          index,
+          name,
           value: generateFixedStringValue(field, template, {
             mode: testValueMode,
             customFill: testValueFill,
             fullWidthRemainder
           })
         };
-        generated += 1;
-        return nextField;
       } catch {
-        skipped += 1;
-        return field;
+        return { index, name, reason: t("testValue.reason.cannotFill") };
       }
     });
-    if (generated === 0) {
+  }
+
+  function applyTestValues() {
+    const candidates = getTestValueCandidates();
+    const generatedValues = new Map(
+      candidates
+        .filter((candidate): candidate is TestValueCandidate & { value: string } => candidate.value !== undefined)
+        .map((candidate) => [candidate.index, candidate.value])
+    );
+    const skipped = candidates.length - generatedValues.size;
+    if (generatedValues.size === 0) {
       showToast("error", t("error.noTestValueTargets"));
       return;
     }
+    const fields = template.fields.map((field, index) => {
+      const value = generatedValues.get(index);
+      return value === undefined ? field : { ...field, value };
+    });
     setFields(fields, selectedFieldIndices[0] ?? 0);
     setTestValueOpen(false);
-    showToast("success", t("toast.testValuesGenerated", { count: generated, skipped }));
+    showToast("success", t("toast.testValuesGenerated", { count: generatedValues.size, skipped }));
   }
 
-  function applyReset(mode: ResetMode) {
-    if (mode === "blank") {
-      replaceTemplate({ ...blankTemplate, fields: [] });
-    } else {
-      replaceTemplate(sampleTemplate);
+  function startNewTemplate() {
+    if (isDirty && !window.confirm(t("confirm.newTemplate"))) {
+      return;
     }
-    showToast("success", t("toast.templateReset"));
+    replaceTemplate({ ...blankTemplate, fields: [] }, true);
+    setJsonOpen(false);
+    showToast("success", t("toast.newTemplate"));
+  }
+
+  function restoreSavedTemplate() {
+    if (!isDirty || !window.confirm(t("confirm.restoreSaved"))) {
+      return;
+    }
+    try {
+      replaceTemplate(JSON.parse(savedSnapshot) as unknown);
+      showToast("success", t("toast.savedRestored"));
+    } catch {
+      showToast("error", t("toast.restoreFailed"));
+    }
   }
 
   function applyJsonText() {
     if (new TextEncoder().encode(jsonText).length > templateLimits.maxJsonBytes) {
-      showToast("error", t("error.jsonTooLarge", { max: formatBytes(templateLimits.maxJsonBytes) }));
+      const message = t("error.jsonTooLarge", { max: formatBytes(templateLimits.maxJsonBytes) });
+      setJsonError(message);
+      showToast("error", message);
       return;
     }
     try {
       const next = JSON.parse(jsonText) as unknown;
+      setJsonDraftDirty(false);
       replaceTemplate(next);
+      setJsonError(null);
       showToast("success", t("toast.jsonLoaded"));
-    } catch {
-      showToast("error", t("toast.invalidJson"));
+    } catch (error) {
+      const message = formatJsonError(error, jsonText, t);
+      setJsonError(message);
+      showToast("error", message);
     }
   }
 
@@ -867,8 +918,17 @@ export function App() {
     if (isDirty && !window.confirm(t("confirm.discardUnsaved"))) {
       return;
     }
-    applyReset("sample");
+    replaceTemplate(sampleTemplate, true);
+    showToast("success", t("toast.sampleLoaded"));
   }
+
+  const testValueCandidates = testValueOpen ? getTestValueCandidates() : [];
+  const testValueTargetCount = testValueCandidates.filter(
+    (candidate) => candidate.value !== undefined
+  ).length;
+  const excludedTestValueCandidates = testValueCandidates.filter(
+    (candidate) => candidate.reason !== undefined
+  );
 
   return (
     <div
@@ -961,7 +1021,7 @@ export function App() {
             onClick={() => void savePackage()}
           >
             <PackageCheck size={16} />
-            <span>ZIP</span>
+            <span>{t("package.button")}</span>
           </button>
           <button type="button" className="button" onClick={requestOpenJson}>
             <FileInput size={16} />
@@ -971,7 +1031,19 @@ export function App() {
             <Braces size={16} />
             {t("toolbar.jsonPanel")}
           </button>
-          <button type="button" className="button" disabled={hasDraftErrors} onClick={saveJson}>
+          <button
+            type="button"
+            className="button"
+            disabled={hasDraftErrors || jsonDraftDirty}
+            title={
+              jsonDraftDirty
+                ? t("json.applyBeforeSave")
+                : !template.name
+                  ? t("template.fileNameFallback", { name: "binary-template.json" })
+                  : undefined
+            }
+            onClick={saveJson}
+          >
             <Save size={16} />
             {t("toolbar.saveJson")}
           </button>
@@ -1001,12 +1073,62 @@ export function App() {
           >
             <Redo2 size={16} />
           </button>
-          <button type="button" className="button subtle-button" onClick={() => setResetOpen(true)}>
+          <button
+            type="button"
+            className="button subtle-button"
+            disabled={!isDirty}
+            onClick={restoreSavedTemplate}
+          >
             <RotateCcw size={16} />
-            {t("toolbar.reset")}
+            {t("toolbar.restoreSaved")}
+          </button>
+          <button type="button" className="button subtle-button" onClick={startNewTemplate}>
+            <FilePlus2 size={16} />
+            {t("toolbar.newTemplate")}
           </button>
         </div>
       </section>
+
+      {jsonOpen ? (
+        <section className="json-panel" aria-label="JSON definition">
+          <div className="panel-heading">
+            <h2>{t("panel.json")}</h2>
+            <div className="json-actions">
+              <button type="button" className="button compact" onClick={() => copyText(jsonText)}>
+                {t("json.copy")}
+              </button>
+              <button type="button" className="button compact primary" onClick={applyJsonText}>
+                {t("json.apply")}
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                title={t("json.close")}
+                aria-label={t("json.close")}
+                onClick={() => setJsonOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+          <textarea
+            aria-label={t("panel.json")}
+            value={jsonText}
+            onChange={(event) => {
+              setJsonText(event.target.value);
+              setJsonDraftDirty(true);
+              setJsonError(null);
+            }}
+            spellCheck={false}
+          />
+          {jsonError ? (
+            <div className="json-editor-error" role="alert">
+              <XCircle size={15} />
+              <span>{jsonError}</span>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <main className="workspace">
         <HexPreviewPanel
@@ -1045,11 +1167,16 @@ export function App() {
                 <input
                   className="template-meta-input"
                   value={template.name}
+                  title={
+                    !template.name
+                      ? t("template.fileNameFallback", { name: "binary-template.json" })
+                      : undefined
+                  }
                   onChange={(event) => updateTemplate({ name: event.target.value })}
                 />
               </label>
               <label>
-                <span>Endian</span>
+                <HeaderLabel label={t("template.defaultEndian")} help={t("help.defaultEndian")} />
                 <select
                   className="template-meta-select"
                   value={template.defaultEndian ?? "unknown"}
@@ -1063,7 +1190,7 @@ export function App() {
                 </select>
               </label>
               <label>
-                <span>Encoding</span>
+                <HeaderLabel label={t("template.defaultEncoding")} help={t("help.defaultEncoding")} />
                 <select
                   className="template-meta-select"
                   value={template.defaultEncoding ?? "unknown"}
@@ -1099,57 +1226,81 @@ export function App() {
             </div>
           </div>
 
-          {selectedFieldIds.length > 0 ? (
-            <div className="selection-toolbar" aria-label={t("batch.toolbarLabel")}>
-              <strong>{t("batch.selected", { count: selectedFieldIds.length })}</strong>
+          {template.fields.length > 0 ? (
+            <div
+              className={selectedFieldIds.length > 0 ? "selection-toolbar has-selection" : "selection-toolbar"}
+              aria-label={t("batch.toolbarLabel")}
+            >
+              <div className="selection-summary">
+                <strong>
+                  {selectedFieldIds.length > 0
+                    ? t("batch.selected", { count: selectedFieldIds.length })
+                    : t("batch.selectHint")}
+                </strong>
+                {selectedLayout ? (
+                  <span>{t("batch.active", { name: selectedLayout.field.name })}</span>
+                ) : null}
+                {fieldClipboard.length > 0 ? (
+                  <span>{t("batch.clipboard", { count: fieldClipboard.length })}</span>
+                ) : null}
+              </div>
               <div className="selection-actions">
-                <button type="button" className="button compact" onClick={duplicateSelectedFields}>
-                  <Copy size={14} />
-                  {t("batch.duplicate")}
-                </button>
-                <button type="button" className="button compact" onClick={copySelectedFields}>
-                  <Clipboard size={14} />
-                  {t("batch.copy")}
-                </button>
+                {selectedFieldIds.length > 0 ? (
+                  <>
+                    <button type="button" className="button compact" onClick={duplicateSelectedFields}>
+                      <Copy size={14} />
+                      {t("batch.duplicate")}
+                    </button>
+                    <button type="button" className="button compact" onClick={copySelectedFields}>
+                      <Clipboard size={14} />
+                      {t("batch.copy")}
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
                   className="button compact"
                   disabled={fieldClipboard.length === 0}
+                  title={t("batch.pasteHelp")}
                   onClick={pasteFields}
                 >
                   <ClipboardPaste size={14} />
                   {t("batch.paste")}
                 </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  title={t("batch.moveUp")}
-                  aria-label={t("batch.moveUp")}
-                  onClick={() => moveSelectedFields("up")}
-                >
-                  <ArrowUp size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  title={t("batch.moveDown")}
-                  aria-label={t("batch.moveDown")}
-                  onClick={() => moveSelectedFields("down")}
-                >
-                  <ArrowDown size={15} />
-                </button>
-                <button type="button" className="button compact" onClick={() => setRepeatOpen(true)}>
-                  <Repeat2 size={14} />
-                  {t("batch.repeat")}
-                </button>
-                <button type="button" className="button compact" onClick={() => setTestValueOpen(true)}>
-                  <WandSparkles size={14} />
-                  {t("batch.generate")}
-                </button>
-                <button type="button" className="button compact danger-button" onClick={deleteSelectedFields}>
-                  <Trash2 size={14} />
-                  {t("batch.delete")}
-                </button>
+                {selectedFieldIds.length > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      title={t("batch.moveUp")}
+                      aria-label={t("batch.moveUp")}
+                      onClick={() => moveSelectedFields("up")}
+                    >
+                      <ArrowUp size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      title={t("batch.moveDown")}
+                      aria-label={t("batch.moveDown")}
+                      onClick={() => moveSelectedFields("down")}
+                    >
+                      <ArrowDown size={15} />
+                    </button>
+                    <button type="button" className="button compact" onClick={() => setRepeatOpen(true)}>
+                      <Repeat2 size={14} />
+                      {t("batch.repeat")}
+                    </button>
+                    <button type="button" className="button compact" onClick={() => setTestValueOpen(true)}>
+                      <WandSparkles size={14} />
+                      {t("batch.generate")}
+                    </button>
+                    <button type="button" className="button compact danger-button" onClick={deleteSelectedFields}>
+                      <Trash2 size={14} />
+                      {t("batch.delete")}
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -1160,12 +1311,14 @@ export function App() {
               <thead>
                 <tr>
                   <th className="drag-heading">
-                    <input
-                      type="checkbox"
-                      aria-label={t("batch.selectAll")}
-                      checked={fieldIds.length > 0 && selectedFieldIds.length === fieldIds.length}
-                      onChange={(event) => selectAllFields(event.target.checked)}
-                    />
+                    <div className="row-leading-controls heading-controls">
+                      <input
+                        type="checkbox"
+                        aria-label={t("batch.selectAll")}
+                        checked={fieldIds.length > 0 && selectedFieldIds.length === fieldIds.length}
+                        onChange={(event) => selectAllFields(event.target.checked)}
+                      />
+                    </div>
                   </th>
                   <th>
                     <HeaderLabel label={t("table.offset")} help={t("help.offset")} />
@@ -1286,31 +1439,6 @@ export function App() {
         ) : null}
       </main>
 
-      {jsonOpen ? (
-        <section className="json-panel" aria-label="JSON definition">
-          <div className="panel-heading">
-            <div>
-              <h2>{t("panel.json")}</h2>
-              <span>{t("panel.jsonHint")}</span>
-            </div>
-            <div className="json-actions">
-              <button type="button" className="button compact" onClick={() => copyText(jsonText)}>
-                {t("json.copy")}
-              </button>
-              <button type="button" className="button compact primary" onClick={applyJsonText}>
-                {t("json.apply")}
-              </button>
-            </div>
-          </div>
-          <textarea
-            aria-label={t("panel.json")}
-            value={jsonText}
-            onChange={(event) => setJsonText(event.target.value)}
-            spellCheck={false}
-          />
-        </section>
-      ) : null}
-
       {copyOpen && !hasErrors && !copyTooLarge ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setCopyOpen(false)}>
           <section
@@ -1338,54 +1466,13 @@ export function App() {
             <div className="copy-list">
               {copyFormats.map((format) => (
                 <div className="copy-row" key={format.id}>
-                  <div>
-                    <strong>{format.label}</strong>
-                    {format.language ? <span>{format.language}</span> : null}
-                  </div>
+                  <strong>{format.label}</strong>
                   <code>{format.value}</code>
                   <button type="button" className="button compact" onClick={() => copyText(format.value)}>
                     {t("copy.copy")}
                   </button>
                 </div>
               ))}
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {resetOpen ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setResetOpen(false)}>
-          <section
-            className="modal-dialog reset-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="reset-dialog-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="modal-heading">
-              <div>
-                <h2 id="reset-dialog-title">{t("reset.title")}</h2>
-                <p>{t("reset.description")}</p>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                title={t("reset.cancel")}
-                aria-label={t("reset.cancel")}
-                onClick={() => setResetOpen(false)}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="reset-options">
-              <button type="button" className="reset-option" onClick={() => applyReset("blank")}>
-                <strong>{t("reset.blank")}</strong>
-                <span>{t("reset.blankDescription")}</span>
-              </button>
-              <button type="button" className="reset-option" onClick={() => applyReset("sample")}>
-                <strong>{t("reset.sample")}</strong>
-                <span>{t("reset.sampleDescription")}</span>
-              </button>
             </div>
           </section>
         </div>
@@ -1474,12 +1561,9 @@ export function App() {
                   <option value="fullWidthMax">{t("testValue.fullWidthMax")}</option>
                   <option value="keepAndFill">{t("testValue.keepAndFill")}</option>
                   <option value="customFill">{t("testValue.customFill")}</option>
-                  <option value="alphabet">{t("testValue.alphabet")}</option>
                   <option value="digits">{t("testValue.digits")}</option>
-                  <option value="hyphen">{t("testValue.hyphen")}</option>
                   <option value="empty">{t("testValue.empty")}</option>
                   <option value="leaveOneByte">{t("testValue.leaveOneByte")}</option>
-                  <option value="overflowOneByte">{t("testValue.overflowOneByte")}</option>
                 </select>
               </label>
               {testValueMode === "keepAndFill" || testValueMode === "customFill" ? (
@@ -1498,16 +1582,50 @@ export function App() {
                   </select>
                 </label>
               ) : null}
+              <div className="test-value-summary" aria-live="polite">
+                <strong>
+                  {t("testValue.targetSummary", {
+                    targets: testValueTargetCount,
+                    excluded: excludedTestValueCandidates.length
+                  })}
+                </strong>
+                {excludedTestValueCandidates.length > 0 ? (
+                  <ul>
+                    {excludedTestValueCandidates.map((candidate) => (
+                      <li key={candidate.index}>
+                        <span>{candidate.name}</span>
+                        <span>{candidate.reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
               <div className="modal-actions">
                 <button type="button" className="button" onClick={() => setTestValueOpen(false)}>{t("reset.cancel")}</button>
-                <button type="button" className="button primary" onClick={applyTestValues}>{t("testValue.apply")}</button>
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={testValueTargetCount === 0}
+                  onClick={applyTestValues}
+                >
+                  {t("testValue.apply")}
+                </button>
               </div>
             </div>
           </section>
         </div>
       ) : null}
 
-      {toast ? <div className={`toast ${toast.kind}`}>{toast.message}</div> : null}
+      {toast ? (
+        <div className={`toast ${toast.kind}`}>
+          <span>{toast.message}</span>
+          {toast.action === "undo" ? (
+            <button type="button" onClick={() => { undo(); setToast(null); }}>
+              {t("toolbar.undo")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1567,6 +1685,33 @@ function translateIssue(
 ): string {
   const key = `${issueKeyPrefix}${code}` as Parameters<typeof translate>[1];
   return translate(locale, key, params);
+}
+
+function formatJsonError(
+  error: unknown,
+  text: string,
+  t: (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) => string
+): string {
+  const message = error instanceof Error ? error.message : "";
+  const lineColumn = message.match(/line\s+(\d+)\s+column\s+(\d+)/i);
+  if (lineColumn) {
+    return t("json.syntaxErrorAt", {
+      line: Number.parseInt(lineColumn[1], 10),
+      column: Number.parseInt(lineColumn[2], 10)
+    });
+  }
+
+  const positionMatch = message.match(/position\s+(\d+)/i);
+  if (positionMatch) {
+    const position = Math.min(text.length, Number.parseInt(positionMatch[1], 10));
+    const before = text.slice(0, position);
+    const lines = before.split(/\r?\n/);
+    return t("json.syntaxErrorAt", {
+      line: lines.length,
+      column: (lines.at(-1)?.length ?? 0) + 1
+    });
+  }
+  return t("json.syntaxError");
 }
 
 let fieldIdSequence = 0;
