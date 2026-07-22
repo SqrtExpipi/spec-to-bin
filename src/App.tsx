@@ -12,7 +12,6 @@ import {
   Info,
   Monitor,
   Moon,
-  PackageCheck,
   Plus,
   RotateCcw,
   Repeat2,
@@ -43,7 +42,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import sampleTemplate from "../examples/basic-fields.json";
 import { getAiPrompt } from "./aiPrompt";
-import { compareBinary, createTestDataPackage, type BinaryComparison } from "./artifacts";
+import { compareBinary, type BinaryComparison } from "./artifacts";
 import { BinaryComparisonDialog } from "./components/BinaryComparisonDialog";
 import {
   generateFixedStringValue,
@@ -112,7 +111,6 @@ export function App() {
   const [textPreviewEncoding, setTextPreviewEncoding] = useState<TextPreviewEncoding>("ascii");
   const [comparison, setComparison] = useState<BinaryComparison | null>(null);
   const [comparing, setComparing] = useState(false);
-  const [packaging, setPackaging] = useState(false);
   const comparisonFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [fieldClipboard, setFieldClipboard] = useState<FieldDefinition[]>([]);
@@ -790,31 +788,6 @@ export function App() {
     showToast("success", t("toast.binSaved"));
   }
 
-  async function savePackage() {
-    if (hasErrors) {
-      showToast("error", t("error.binBlocked"));
-      return;
-    }
-    setPackaging(true);
-    try {
-      const artifact = await createTestDataPackage({
-        binary: result.bytes,
-        templateJson: currentSnapshot,
-        templateName: template.name,
-        toolVersion: appVersion
-      });
-      downloadBlob(
-        new Blob([bytesToArrayBuffer(artifact.bytes)], { type: "application/zip" }),
-        `${safeFileName(template.name || "test-data")}-package.zip`
-      );
-      showToast("success", t("toast.packageSaved"));
-    } catch {
-      showToast("error", t("error.packageFailed"));
-    } finally {
-      setPackaging(false);
-    }
-  }
-
   async function onComparisonFileSelected(file: File | undefined) {
     if (!file) {
       return;
@@ -1011,17 +984,6 @@ export function App() {
           <button type="button" className="button primary" disabled={hasErrors} onClick={saveBin}>
             <Download size={16} />
             {t("toolbar.saveBin")}
-          </button>
-          <button
-            type="button"
-            className="button compact package-button"
-            disabled={hasErrors || packaging}
-            title={packaging ? t("package.creating") : t("package.save")}
-            aria-label={packaging ? t("package.creating") : t("package.save")}
-            onClick={() => void savePackage()}
-          >
-            <PackageCheck size={16} />
-            <span>{t("package.button")}</span>
           </button>
           <button type="button" className="button" onClick={requestOpenJson}>
             <FileInput size={16} />

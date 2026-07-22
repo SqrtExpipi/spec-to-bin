@@ -74,7 +74,6 @@ const en = {
   "toast.jsonLoaded": "JSON loaded.",
   "toast.jsonSaved": "JSON saved.",
   "toast.binSaved": "BIN saved.",
-  "toast.packageSaved": "Test data package saved.",
   "toast.invalidJson": "Invalid JSON.",
   "toast.validationComplete": "Validation complete.",
   "toast.updateAvailable": "A new version is available. Reload to update.",
@@ -91,7 +90,6 @@ const en = {
   "error.repeatContiguous": "Select one contiguous range of rows to repeat.",
   "error.noTestValueTargets": "No editable fixed-length string fields could be generated.",
   "error.jsonTooLarge": "JSON is too large. Maximum size is {max}.",
-  "error.packageFailed": "Failed to create the test data package.",
   "error.compareTooLarge": "The comparison BIN is too large. Maximum size is {max}.",
   "error.compareFailed": "Failed to read or compare the BIN file.",
   "error.jsonFileType": "Drop a .json file.",
@@ -117,10 +115,6 @@ const en = {
   "copy.ready": "Choose a format and copy it.",
   "copy.blocked": "Fix errors before copying.",
   "copy.tooLarge": "Copy output is available up to {max}.",
-
-  "package.save": "Save package",
-  "package.button": "Test package ZIP",
-  "package.creating": "Creating package...",
 
   "compare.open": "Compare BIN",
   "compare.fileInput": "BIN file to compare",
@@ -358,7 +352,6 @@ const ja: Record<MessageKey, string> = {
   "toast.jsonLoaded": "JSONを読み込みました。",
   "toast.jsonSaved": "JSONを保存しました。",
   "toast.binSaved": "BINを保存しました。",
-  "toast.packageSaved": "テストデータ一式を保存しました。",
   "toast.invalidJson": "JSONが不正です。",
   "toast.validationComplete": "検証しました。",
   "toast.updateAvailable": "新しいバージョンがあります。再読み込みで更新できます。",
@@ -375,7 +368,6 @@ const ja: Record<MessageKey, string> = {
   "error.repeatContiguous": "繰り返す行は連続した1つの範囲で選択してください。",
   "error.noTestValueTargets": "生成できる編集可能な固定長string項目がありません。",
   "error.jsonTooLarge": "JSONが大きすぎます。最大サイズは {max} です。",
-  "error.packageFailed": "テストデータ一式の作成に失敗しました。",
   "error.compareTooLarge": "比較対象BINが大きすぎます。最大サイズは {max} です。",
   "error.compareFailed": "BINファイルの読み込みまたは比較に失敗しました。",
   "error.jsonFileType": ".jsonファイルをドロップしてください。",
@@ -401,10 +393,6 @@ const ja: Record<MessageKey, string> = {
   "copy.ready": "形式を選んでコピーしてください。",
   "copy.blocked": "エラー修正後にコピーできます。",
   "copy.tooLarge": "コピー出力は {max} まで利用できます。",
-
-  "package.save": "一式をZIP保存",
-  "package.button": "テスト一式ZIP",
-  "package.creating": "ZIPを作成中...",
 
   "compare.open": "BINと比較",
   "compare.fileInput": "比較するBINファイル",

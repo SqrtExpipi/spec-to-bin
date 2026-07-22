@@ -43,7 +43,6 @@ Errors block preview, copy, and BIN export to prevent an invalid file from being
 | Action | Description |
 | --- | --- |
 | Save BIN file | Saves the validated byte sequence as `.bin`. |
-| Test package ZIP | Saves the template, generated BIN, hashes, and generation metadata together. |
 | Open JSON file | Loads a template and replaces the current table. Unsaved changes require confirmation. |
 | Edit JSON | Opens the JSON editor directly below the toolbar. Select **Apply JSON** after editing. |
 | Save JSON file | Saves the current template and values. This is separate from BIN export. |
@@ -275,11 +274,7 @@ v0.1 does not calculate CRC or checksums. If the specification gives an algorith
 
 Use **Compare BIN** in Hex preview to compare the current generated result with a local `.bin` file. This does not parse or modify the BIN. The result shows both sizes, matching and mismatched byte counts, the first mismatch, SHA-256 hashes, and up to the first 256 differences. Each difference includes its field name and field-relative offset when it falls inside generated data. Differences in `fixed` and `padding` fields are highlighted.
 
-### Saving a test data package
-
-Use **Save package** to download one ZIP containing `template.json`, `generated.bin`, `manifest.json`, and `README.txt`. `manifest.json` records the tool version, template name, generated size, generation time, and SHA-256 hashes. The hashes are calculated from the exact `template.json` and `generated.bin` bytes stored in the ZIP.
-
-Like all other file operations, comparison, hashing, and ZIP creation run locally in the browser.
+Like all other file operations, comparison and hashing run locally in the browser.
 
 ![An expected-offset validation error shown below the affected row](./images/en-validation.png)
 

@@ -89,11 +89,14 @@ describe("App editor workflow", () => {
   it("places BIN save first and gives it the primary action style", () => {
     const { container } = render(<App />);
     const toolbar = container.querySelector(".toolbar") as HTMLElement;
+    const toolbarActions = container.querySelector(".toolbar-actions") as HTMLElement;
     const saveBin = within(toolbar).getByRole("button", { name: "BINファイルを保存" });
     const loadJson = within(toolbar).getByRole("button", { name: "JSONファイルを開く" });
+    const primaryActions = within(toolbarActions).getAllByRole("button");
 
     expect(saveBin).toHaveClass("primary");
     expect(loadJson).not.toHaveClass("primary");
+    expect(primaryActions.slice(0, 2)).toEqual([saveBin, loadJson]);
     expect(
       Boolean(saveBin.compareDocumentPosition(loadJson) & Node.DOCUMENT_POSITION_FOLLOWING)
     ).toBe(true);
