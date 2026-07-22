@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Clipboard, XCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Clipboard, GitCompareArrows, XCircle } from "lucide-react";
 import { toOffset, type FieldLayout, type HexRow, type TextPreviewEncoding } from "../core";
 import type { Translator } from "../uiTypes";
 
@@ -9,6 +9,7 @@ export function HexPreviewPanel({
   hasErrors,
   hexRows,
   onOpenCopy,
+  onOpenCompare,
   onTextEncodingChange,
   onToggleExpanded,
   previewNotice,
@@ -23,6 +24,7 @@ export function HexPreviewPanel({
   hasErrors: boolean;
   hexRows: HexRow[];
   onOpenCopy: () => void;
+  onOpenCompare: () => void;
   onTextEncodingChange: (encoding: TextPreviewEncoding) => void;
   onToggleExpanded: () => void;
   previewNotice?: string;
@@ -47,6 +49,15 @@ export function HexPreviewPanel({
           ) : null}
         </div>
         <div className="preview-actions">
+          <button
+            type="button"
+            className="button compact"
+            disabled={hasErrors}
+            onClick={onOpenCompare}
+          >
+            <GitCompareArrows size={14} />
+            {t("compare.open")}
+          </button>
           <button
             type="button"
             className="button compact"

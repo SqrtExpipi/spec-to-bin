@@ -11,6 +11,7 @@ import {
   Info,
   Monitor,
   Moon,
+  PackageCheck,
   Plus,
   RotateCcw,
   Repeat2,
@@ -41,6 +42,8 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import sampleTemplate from "../examples/basic-fields.json";
 import { getAiPrompt } from "./aiPrompt";
+import { compareBinary, createTestDataPackage, type BinaryComparison } from "./artifacts";
+import { BinaryComparisonDialog } from "./components/BinaryComparisonDialog";
 import {
   generateFixedStringValue,
   repeatSelectedFields,
@@ -102,6 +105,10 @@ export function App() {
   const [resetOpen, setResetOpen] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [textPreviewEncoding, setTextPreviewEncoding] = useState<TextPreviewEncoding>("ascii");
+  const [comparison, setComparison] = useState<BinaryComparison | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [packaging, setPackaging] = useState(false);
+  const comparisonFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [fieldClipboard, setFieldClipboard] = useState<FieldDefinition[]>([]);
   const [repeatOpen, setRepeatOpen] = useState(false);
@@ -251,7 +258,7 @@ export function App() {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!copyOpen && !resetOpen && !repeatOpen && !testValueOpen) {
+    if (!copyOpen && !resetOpen && !comparison && !repeatOpen && !testValueOpen) {
       return;
     }
 
@@ -259,13 +266,14 @@ export function App() {
       if (event.key === "Escape") {
         setCopyOpen(false);
         setResetOpen(false);
+        setComparison(null);
         setRepeatOpen(false);
         setTestValueOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [copyOpen, repeatOpen, resetOpen, testValueOpen]);
+  }, [comparison, copyOpen, repeatOpen, resetOpen, testValueOpen]);
 
   function showToast(kind: NonNullable<ToastState>["kind"], message: string) {
     setToast({ kind, message });
@@ -731,6 +739,50 @@ export function App() {
     showToast("success", t("toast.binSaved"));
   }
 
+  async function savePackage() {
+    if (hasErrors) {
+      showToast("error", t("error.binBlocked"));
+      return;
+    }
+    setPackaging(true);
+    try {
+      const artifact = await createTestDataPackage({
+        binary: result.bytes,
+        templateJson: currentSnapshot,
+        templateName: template.name,
+        toolVersion: appVersion
+      });
+      downloadBlob(
+        new Blob([bytesToArrayBuffer(artifact.bytes)], { type: "application/zip" }),
+        `${safeFileName(template.name || "test-data")}-package.zip`
+      );
+      showToast("success", t("toast.packageSaved"));
+    } catch {
+      showToast("error", t("error.packageFailed"));
+    } finally {
+      setPackaging(false);
+    }
+  }
+
+  async function onComparisonFileSelected(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+    if (file.size > templateLimits.maxTotalBytes) {
+      showToast("error", t("error.compareTooLarge", { max: formatBytes(templateLimits.maxTotalBytes) }));
+      return;
+    }
+    setComparing(true);
+    try {
+      const actual = new Uint8Array(await file.arrayBuffer());
+      setComparison(await compareBinary(result.bytes, actual, result.layouts));
+    } catch {
+      showToast("error", t("error.compareFailed"));
+    } finally {
+      setComparing(false);
+    }
+  }
+
   async function loadJsonFile(file: File | undefined, confirmReplacement = false) {
     if (!file) {
       return;
@@ -884,10 +936,32 @@ export function App() {
             event.currentTarget.value = "";
           }}
         />
+        <input
+          ref={comparisonFileInputRef}
+          type="file"
+          accept="application/octet-stream,.bin"
+          aria-label={t("compare.fileInput")}
+          hidden
+          onChange={(event) => {
+            void onComparisonFileSelected(event.target.files?.[0]);
+            event.currentTarget.value = "";
+          }}
+        />
         <div className="toolbar-actions">
           <button type="button" className="button primary" disabled={hasErrors} onClick={saveBin}>
             <Download size={16} />
             {t("toolbar.saveBin")}
+          </button>
+          <button
+            type="button"
+            className="button compact package-button"
+            disabled={hasErrors || packaging}
+            title={packaging ? t("package.creating") : t("package.save")}
+            aria-label={packaging ? t("package.creating") : t("package.save")}
+            onClick={() => void savePackage()}
+          >
+            <PackageCheck size={16} />
+            <span>ZIP</span>
           </button>
           <button type="button" className="button" onClick={requestOpenJson}>
             <FileInput size={16} />
@@ -946,6 +1020,7 @@ export function App() {
           hasErrors={hasErrors}
           hexRows={hexRows}
           onOpenCopy={() => setCopyOpen(true)}
+          onOpenCompare={() => comparisonFileInputRef.current?.click()}
           onTextEncodingChange={setTextPreviewEncoding}
           onToggleExpanded={() => setPreviewExpanded((expanded) => !expanded)}
           previewNotice={
@@ -1315,6 +1390,12 @@ export function App() {
           </section>
         </div>
       ) : null}
+
+      {comparison ? (
+        <BinaryComparisonDialog comparison={comparison} onClose={() => setComparison(null)} t={t} />
+      ) : null}
+
+      {comparing ? <div className="busy-overlay" role="status">{t("compare.processing")}</div> : null}
 
       {repeatOpen ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setRepeatOpen(false)}>
