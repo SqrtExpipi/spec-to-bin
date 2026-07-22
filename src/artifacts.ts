@@ -1,4 +1,3 @@
-import { strToU8, zip } from "fflate";
 import type { FieldLayout } from "./core";
 
 export type DifferenceKind = "fixed" | "reserved" | "field" | "outside";
@@ -23,15 +22,6 @@ export interface BinaryComparison {
   actualSha256: string;
   differences: BinaryDifference[];
   differencesTruncated: boolean;
-}
-
-export interface ArtifactManifest {
-  toolVersion: string;
-  templateName: string;
-  generatedSize: number;
-  templateSha256: string;
-  binarySha256: string;
-  generatedAt: string;
 }
 
 export async function compareBinary(
@@ -78,54 +68,6 @@ export async function compareBinary(
     differences,
     differencesTruncated: mismatchBytes > differences.length
   };
-}
-
-export async function createTestDataPackage({
-  binary,
-  generatedAt = new Date(),
-  templateJson,
-  templateName,
-  toolVersion
-}: {
-  binary: Uint8Array;
-  generatedAt?: Date;
-  templateJson: string;
-  templateName: string;
-  toolVersion: string;
-}): Promise<{ bytes: Uint8Array; manifest: ArtifactManifest }> {
-  const templateBytes = strToU8(`${templateJson.trimEnd()}\n`);
-  const [templateSha256, binarySha256] = await Promise.all([
-    sha256Hex(templateBytes),
-    sha256Hex(binary)
-  ]);
-  const manifest: ArtifactManifest = {
-    toolVersion,
-    templateName,
-    generatedSize: binary.length,
-    templateSha256,
-    binarySha256,
-    generatedAt: generatedAt.toISOString()
-  };
-  const readme = [
-    "Spec to BIN test data package",
-    "",
-    "template.json: Binary structure and values used for generation.",
-    "generated.bin: Generated binary data.",
-    "manifest.json: Tool version, generation time, sizes, and SHA-256 hashes.",
-    "",
-    "template.json: 生成に使用したバイナリ構造と値です。",
-    "generated.bin: 生成したバイナリデータです。",
-    "manifest.json: ツール版、生成日時、サイズ、SHA-256を記録します。",
-    ""
-  ].join("\n");
-
-  const bytes = await zipFiles({
-    "template.json": templateBytes,
-    "generated.bin": binary,
-    "manifest.json": strToU8(`${JSON.stringify(manifest, null, 2)}\n`),
-    "README.txt": strToU8(readme)
-  });
-  return { bytes, manifest };
 }
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -175,16 +117,4 @@ function findLayout(offset: number, layouts: FieldLayout[]): FieldLayout | undef
     }
   }
   return undefined;
-}
-
-function zipFiles(files: Record<string, Uint8Array>): Promise<Uint8Array> {
-  return new Promise((resolve, reject) => {
-    zip(files, { level: 6 }, (error, data) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(data);
-      }
-    });
-  });
 }
