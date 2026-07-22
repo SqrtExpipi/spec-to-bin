@@ -88,7 +88,9 @@ export function App() {
   const [resetOpen, setResetOpen] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [textPreviewEncoding, setTextPreviewEncoding] = useState<TextPreviewEncoding>("ascii");
+  const [jsonDragActive, setJsonDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonDragDepth = useRef(0);
 
   const t = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) =>
     translate(locale, key, params);
@@ -534,8 +536,13 @@ export function App() {
     showToast("success", t("toast.binSaved"));
   }
 
-  function onJsonFileSelected(file: File | undefined) {
+  async function loadJsonFile(file: File | undefined, confirmReplacement = false) {
     if (!file) {
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      showToast("error", t("error.jsonFileType"));
       return;
     }
 
@@ -544,14 +551,18 @@ export function App() {
       return;
     }
 
-    file
-      .text()
-      .then((text) => {
-        const next = JSON.parse(text) as unknown;
-        replaceTemplate(next, true);
-        showToast("success", t("toast.jsonLoaded"));
-      })
-      .catch(() => showToast("error", t("toast.invalidJson")));
+    if (confirmReplacement && isDirty && !window.confirm(t("confirm.replaceUnsaved"))) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const next = JSON.parse(text) as unknown;
+      replaceTemplate(next, true);
+      showToast("success", t("toast.jsonLoaded"));
+    } catch {
+      showToast("error", t("toast.invalidJson"));
+    }
   }
 
   function requestOpenJson() {
@@ -561,8 +572,74 @@ export function App() {
     fileInputRef.current?.click();
   }
 
+  function handleJsonDragEnter(event: React.DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    jsonDragDepth.current += 1;
+    setJsonDragActive(true);
+  }
+
+  function handleJsonDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleJsonDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    if (jsonDragDepth.current === 0) {
+      return;
+    }
+    event.preventDefault();
+    jsonDragDepth.current = Math.max(0, jsonDragDepth.current - 1);
+    if (jsonDragDepth.current === 0) {
+      setJsonDragActive(false);
+    }
+  }
+
+  function handleJsonDrop(event: React.DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    jsonDragDepth.current = 0;
+    setJsonDragActive(false);
+
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length !== 1) {
+      showToast("error", t("error.jsonSingleFile"));
+      return;
+    }
+    void loadJsonFile(files[0], true);
+  }
+
+  function loadSampleFromEmptyState() {
+    if (isDirty && !window.confirm(t("confirm.discardUnsaved"))) {
+      return;
+    }
+    applyReset("sample");
+  }
+
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onDragEnter={handleJsonDragEnter}
+      onDragLeave={handleJsonDragLeave}
+      onDragOver={handleJsonDragOver}
+      onDrop={handleJsonDrop}
+    >
+      {jsonDragActive ? (
+        <div className="json-drop-overlay" role="status" aria-live="polite">
+          <div className="json-drop-message">
+            <FileInput size={28} />
+            <strong>{t("drop.title")}</strong>
+            <span>{t("drop.hint")}</span>
+          </div>
+        </div>
+      ) : null}
       <header className="app-header">
         <div className="brand">
           <div className="brand-mark">
@@ -608,7 +685,7 @@ export function App() {
           accept="application/json,.json"
           hidden
           onChange={(event) => {
-            onJsonFileSelected(event.target.files?.[0]);
+            void loadJsonFile(event.target.files?.[0]);
             event.currentTarget.value = "";
           }}
         />
@@ -795,11 +872,28 @@ export function App() {
                   <tr>
                     <td colSpan={11}>
                       <div className="table-empty">
-                        <span>{t("field.empty")}</span>
-                        <button type="button" className="button compact primary" onClick={() => addFieldAt(0)}>
-                          <Plus size={15} />
-                          {t("field.add")}
-                        </button>
+                        <div className="empty-state-copy">
+                          <strong>{t("onboarding.title")}</strong>
+                          <span>{t("onboarding.hint")}</span>
+                        </div>
+                        <div className="empty-state-actions">
+                          <button type="button" className="button compact primary" onClick={requestOpenJson}>
+                            <FileInput size={15} />
+                            {t("toolbar.loadJson")}
+                          </button>
+                          <button type="button" className="button compact" onClick={() => copyText(getAiPrompt(locale))}>
+                            <Clipboard size={15} />
+                            {t("toolbar.copyPrompt")}
+                          </button>
+                          <button type="button" className="button compact" onClick={loadSampleFromEmptyState}>
+                            <Braces size={15} />
+                            {t("onboarding.sample")}
+                          </button>
+                          <button type="button" className="button compact" onClick={() => addFieldAt(0)}>
+                            <Plus size={15} />
+                            {t("onboarding.blank")}
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1103,6 +1197,10 @@ function formatBytes(value: number): string {
     return `${Math.round(value / 1024)} KiB`;
   }
   return `${value} bytes`;
+}
+
+function hasDraggedFiles(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.types).includes("Files");
 }
 
 function makeUniqueFieldName(fields: FieldDefinition[], base: string): string {

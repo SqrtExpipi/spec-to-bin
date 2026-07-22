@@ -105,7 +105,7 @@ npm run build
 npm run build:offline
 ```
 
-Open `dist-offline/index.html` directly in a browser. The JavaScript and CSS are embedded in that one file. Tagged GitHub releases package this output as an offline ZIP.
+Open `dist-offline/Spec-to-BIN-Offline.html` directly in a browser. The JavaScript and CSS are embedded in that one file. Tagged GitHub releases package it with a readme and license as `spec-to-bin-offline-vX.Y.Z.zip`.
 
 ## Test
 

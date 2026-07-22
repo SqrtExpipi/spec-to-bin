@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { templateLimits } from "./core";
 
@@ -49,9 +49,10 @@ describe("App editor workflow", () => {
   });
 
   it("places BIN save first and gives it the primary action style", () => {
-    render(<App />);
-    const saveBin = screen.getByRole("button", { name: "BINファイルを保存" });
-    const loadJson = screen.getByRole("button", { name: "JSONファイルを開く" });
+    const { container } = render(<App />);
+    const toolbar = container.querySelector(".toolbar") as HTMLElement;
+    const saveBin = within(toolbar).getByRole("button", { name: "BINファイルを保存" });
+    const loadJson = within(toolbar).getByRole("button", { name: "JSONファイルを開く" });
 
     expect(saveBin).toHaveClass("primary");
     expect(loadJson).not.toHaveClass("primary");
@@ -256,4 +257,63 @@ describe("App editor workflow", () => {
     });
     expect(container.querySelector(".hex-text")).toHaveTextContent("試験機A");
   });
+
+  it("loads one JSON file dropped anywhere on the app", async () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    const shell = container.querySelector(".app-shell") as HTMLElement;
+    const file = jsonFile({ formatVersion: "0.1", name: "dropped", fields: [] });
+
+    fireEvent.dragEnter(shell, { dataTransfer: { types: ["Files"], files: [file] } });
+    expect(screen.getByText("Drop JSON to open")).toBeInTheDocument();
+
+    fireEvent.drop(shell, { dataTransfer: { types: ["Files"], files: [file] } });
+    await waitFor(() => expect(screen.getByLabelText("Template name")).toHaveValue("dropped"));
+    expect(screen.queryByText("Drop JSON to open")).not.toBeInTheDocument();
+  });
+
+  it("rejects multiple files and non-JSON files dropped on the app", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    const shell = container.querySelector(".app-shell") as HTMLElement;
+    const first = jsonFile({ formatVersion: "0.1", name: "first", fields: [] });
+    const second = jsonFile({ formatVersion: "0.1", name: "second", fields: [] }, "second.json");
+
+    fireEvent.drop(shell, { dataTransfer: { types: ["Files"], files: [first, second] } });
+    expect(screen.getByText("Drop one JSON file at a time.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Template name")).toHaveValue("new_template");
+
+    fireEvent.drop(shell, {
+      dataTransfer: { types: ["Files"], files: [jsonFile({}, "definition.txt")] }
+    });
+    expect(screen.getByText("Drop a .json file.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Template name")).toHaveValue("new_template");
+  });
+
+  it("keeps unsaved changes when a dropped JSON replacement is cancelled", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { container } = render(<App />);
+    const nameInput = screen.getByLabelText("Template name");
+    fireEvent.change(nameInput, { target: { value: "working_copy" } });
+
+    fireEvent.drop(container.querySelector(".app-shell") as HTMLElement, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [jsonFile({ formatVersion: "0.1", name: "replacement", fields: [] })]
+      }
+    });
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(nameInput).toHaveValue("working_copy");
+    confirm.mockRestore();
+  });
 });
+
+function jsonFile(value: unknown, name = "definition.json"): File {
+  const file = new File([JSON.stringify(value)], name, { type: "application/json" });
+  Object.defineProperty(file, "text", {
+    value: () => Promise.resolve(JSON.stringify(value))
+  });
+  return file;
+}

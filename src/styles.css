@@ -662,10 +662,63 @@ h2 {
 .table-empty {
   align-items: center;
   color: var(--muted);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 28px 16px;
+}
+
+.empty-state-copy {
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+.empty-state-copy strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.empty-state-copy span {
+  font-size: 12px;
+}
+
+.empty-state-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: center;
-  padding: 18px 0;
+}
+
+.json-drop-overlay {
+  align-items: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: fixed;
+  z-index: 100;
+}
+
+.json-drop-message {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--accent-text);
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  max-width: calc(100vw - 32px);
+  padding: 28px 42px;
+  text-align: center;
+}
+
+.json-drop-message span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .hex-dump {
@@ -1015,6 +1068,11 @@ h2 {
 
   .copy-row {
     grid-template-columns: 1fr;
+  }
+
+  .empty-state-actions {
+    display: grid;
+    width: 100%;
   }
 
   .modal-dialog {
