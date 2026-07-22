@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import { templateLimits } from "./core";
+import { templateLimits, type FieldDefinition } from "./core";
 
 describe("App editor workflow", () => {
   beforeEach(() => {
@@ -11,12 +11,18 @@ describe("App editor workflow", () => {
   });
 
   function applyTemplate(container: HTMLElement, template: unknown) {
-    fireEvent.click(screen.getByRole("button", { name: "JSONを直接編集" }));
+    fireEvent.click(
+      screen.queryByRole("button", { name: "JSONを直接編集" }) ??
+        screen.getByRole("button", { name: "Edit JSON" })
+    );
     const textarea = container.querySelector<HTMLTextAreaElement>(".json-panel textarea");
     fireEvent.change(textarea as HTMLTextAreaElement, {
       target: { value: JSON.stringify(template) }
     });
-    fireEvent.click(screen.getByRole("button", { name: "JSONを反映" }));
+    fireEvent.click(
+      screen.queryByRole("button", { name: "JSONを反映" }) ??
+        screen.getByRole("button", { name: "Apply JSON" })
+    );
   }
 
   it("starts with a blank template and keeps samples behind Reset", () => {
@@ -256,6 +262,109 @@ describe("App editor workflow", () => {
       target: { value: "shift_jis" }
     });
     expect(container.querySelector(".hex-text")).toHaveTextContent("試験機A");
+  });
+
+  it("repeats selected rows as numbered flat fields", async () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "records",
+      defaultEncoding: "shift_jis",
+      fields: [
+        { name: "name", type: "string", length: 4, value: "A" },
+        { name: "code", type: "uint8", value: 1 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select name" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Repeat" }));
+    fireEvent.change(screen.getByLabelText("Total record count (including the original)"), {
+      target: { value: "3" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Expand rows" }));
+
+    expect(container.querySelectorAll(".field-row-group")).toHaveLength(6);
+    const json = JSON.parse(
+      container.querySelector<HTMLTextAreaElement>(".json-panel textarea")?.value ?? "{}"
+    );
+    expect(json.fields.map((field: FieldDefinition) => field.name)).toEqual([
+      "name_01",
+      "code_01",
+      "name_02",
+      "code_02",
+      "name_03",
+      "code_03"
+    ]);
+    expect(json.fields.map((field: FieldDefinition) => field.offset)).toEqual([0, 4, 5, 9, 10, 14]);
+  });
+
+  it("generates encoding-aware test values for selected string rows", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "strings",
+      defaultEncoding: "shift_jis",
+      fields: [
+        { name: "oddText", type: "string", length: 7, value: "" },
+        { name: "number", type: "uint8", value: 1 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select oddText" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate test values" }));
+    fireEvent.change(screen.getByLabelText("Generation mode"), { target: { value: "fullWidthMax" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate values" }));
+
+    expect(container.querySelector<HTMLInputElement>(".value-input")).toHaveValue("あああA");
+    expect(screen.getByText("7 / 7 bytes")).toBeInTheDocument();
+  });
+
+  it("copies and pastes selected rows inside the editor", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "copy_rows",
+      fields: [{ name: "item", type: "uint8", value: 1 }]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select item" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+
+    expect(container.querySelectorAll(".field-row-group")).toHaveLength(2);
+    expect(container.querySelectorAll<HTMLInputElement>(".field-name")[1]).toHaveValue("item_copy");
+  });
+
+  it("moves and deletes the same selected rows as a group", () => {
+    localStorage.setItem("spec-to-bin.locale", "en");
+    const { container } = render(<App />);
+    applyTemplate(container, {
+      formatVersion: "0.1",
+      name: "move_rows",
+      fields: [
+        { name: "first", type: "uint8", value: 1 },
+        { name: "second", type: "uint8", value: 2 },
+        { name: "third", type: "uint8", value: 3 }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select second" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move selected rows up" }));
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "second",
+      "first",
+      "third"
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(Array.from(container.querySelectorAll<HTMLInputElement>(".field-name"), (input) => input.value)).toEqual([
+      "first",
+      "third"
+    ]);
   });
 
   it("loads one JSON file dropped anywhere on the app", async () => {

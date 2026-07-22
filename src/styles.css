@@ -404,9 +404,9 @@ h2 {
   background: var(--panel);
   box-shadow: 1px 0 0 var(--border);
   left: 0;
-  min-width: 42px;
+  min-width: 66px;
   position: sticky;
-  width: 42px;
+  width: 66px;
 }
 
 .field-table .drag-heading {
@@ -415,7 +415,15 @@ h2 {
 }
 
 .field-table .drag-cell {
+  white-space: nowrap;
   z-index: 2;
+}
+
+.field-table .drag-cell > input,
+.field-table .drag-heading > input {
+  accent-color: var(--accent);
+  margin: 0 5px 0 0;
+  vertical-align: middle;
 }
 
 .field-table .actions-heading,
@@ -442,17 +450,20 @@ h2 {
 }
 
 .field-table tbody tr:not(.field-issues-row):hover,
-.field-table tbody tr.selected {
+.field-table tbody tr.selected,
+.field-table tbody tr.batch-selected {
   background: var(--accent-soft);
 }
 
 .field-table tbody tr:not(.field-issues-row):hover .actions-cell,
-.field-table tbody tr.selected .actions-cell {
+.field-table tbody tr.selected .actions-cell,
+.field-table tbody tr.batch-selected .actions-cell {
   background: var(--accent-soft);
 }
 
 .field-table tbody tr:not(.field-issues-row):hover .drag-cell,
-.field-table tbody tr.selected .drag-cell {
+.field-table tbody tr.selected .drag-cell,
+.field-table tbody tr.batch-selected .drag-cell {
   background: var(--accent-soft);
 }
 
@@ -460,6 +471,33 @@ h2 {
   opacity: 0.72;
   position: relative;
   z-index: 4;
+}
+
+.selection-toolbar {
+  align-items: center;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 14px;
+}
+
+.selection-toolbar > strong {
+  color: var(--accent-text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.danger-button {
+  color: var(--error);
 }
 
 .th-label {
@@ -948,6 +986,54 @@ h2 {
   width: 560px;
 }
 
+.batch-dialog {
+  width: 620px;
+}
+
+.batch-form {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.batch-form > label:not(.check-label) {
+  display: grid;
+  gap: 5px;
+}
+
+.batch-form label > span {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-form input:not([type="checkbox"]),
+.batch-form select {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  height: 36px;
+  padding: 0 9px;
+}
+
+.check-label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.check-label input {
+  accent-color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
 .reset-options {
   display: grid;
   gap: 10px;
@@ -1051,6 +1137,15 @@ h2 {
   .panel-actions,
   .json-actions {
     width: 100%;
+  }
+
+  .selection-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .selection-actions {
+    justify-content: flex-start;
   }
 
   .button,

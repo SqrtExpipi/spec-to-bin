@@ -27,6 +27,7 @@ import type { Translator } from "../uiTypes";
 
 export function SortableFieldRows({
   addFieldAt,
+  batchSelected,
   clearNeedsReview,
   deleteField,
   duplicateField,
@@ -40,11 +41,13 @@ export function SortableFieldRows({
   status,
   t,
   template,
+  toggleBatchSelection,
   updateField,
   updateFieldNumber,
   updateFieldType
 }: {
   addFieldAt: (insertIndex: number) => void;
+  batchSelected: boolean;
   clearNeedsReview: (index: number) => void;
   deleteField: (index: number) => void;
   duplicateField: (index: number) => void;
@@ -62,6 +65,7 @@ export function SortableFieldRows({
   status: "ok" | "warning" | "error";
   t: Translator;
   template: BinaryTemplate;
+  toggleBatchSelection: (id: string) => void;
   updateField: (index: number, patch: Partial<FieldDefinition>) => void;
   updateFieldNumber: (index: number, key: "offset" | "length", value: string) => boolean;
   updateFieldType: (index: number, type: FieldType) => void;
@@ -80,8 +84,18 @@ export function SortableFieldRows({
       ref={setNodeRef}
       style={style}
     >
-      <tr className={selected ? "selected" : ""} onClick={() => setSelectedFieldIndex(layout.index)}>
+      <tr
+        className={[selected ? "selected" : "", batchSelected ? "batch-selected" : ""].filter(Boolean).join(" ")}
+        onClick={() => setSelectedFieldIndex(layout.index)}
+      >
         <td className="drag-cell">
+          <input
+            type="checkbox"
+            aria-label={t("batch.selectRow", { name: layout.field.name })}
+            checked={batchSelected}
+            onChange={() => toggleBatchSelection(id)}
+            onClick={(event) => event.stopPropagation()}
+          />
           <button
             type="button"
             className="drag-handle"

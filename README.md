@@ -45,6 +45,8 @@ An optional external chat AI can turn a specification into a draft JSON definiti
 - Load and save JSON binary templates
 - Edit names, types, sizes, formats, values, notes, and expected offsets in a table
 - Reorder, add, duplicate, and delete fields
+- Select multiple rows to copy, paste, move, delete, or expand a record block with numbered names
+- Generate fixed-length string test values by encoded byte length, including exact maximum and intentional overflow cases
 - Undo and redo edits, with unsaved-change warnings
 - Show offsets and byte sizes
 - Show field validation directly below the affected row
@@ -80,7 +82,8 @@ The current release targets the latest stable versions of Google Chrome and Micr
 
 - CRC and checksum fields are not calculated automatically. Enter precomputed values as ordinary numeric or byte fields.
 - Existing BIN files cannot be parsed back into templates.
-- Repeat structures, variable-length structures, bit fields, floating-point fields, and conditional fields are not supported.
+- JSON repeat structures are not supported. The GUI can expand selected rows into ordinary flat `fields`.
+- Variable-length structures, bit fields, floating-point fields, and conditional fields are not supported.
 - The web/PWA build must be served over HTTP(S). Use the release ZIP when direct `file://` and offline operation are required.
 - Preview and text-copy output are intentionally capped; larger valid binaries can still be saved within the generated-binary limit below.
 
@@ -174,7 +177,7 @@ These are intentionally outside the first version:
 - TCP/UDP send
 - Existing BIN reverse parsing
 - CRC/checksum
-- repeat structures
+- repeat structures in the JSON format (GUI expansion to flat fields is supported)
 - lengthOf/countOf/offsetOf auto fields
 - batch generation
 - CLI

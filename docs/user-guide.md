@@ -87,6 +87,14 @@ Each row is one field in output order. Calculated offsets come from row order an
 
 Adding, duplicating, deleting, or reordering a row changes the calculated offsets of later fields.
 
+### Multiple-row operations
+
+Use the checkbox at the left of each row to show the selection toolbar. Selected rows can be duplicated, copied and pasted inside the editor, moved, deleted, or treated as one record and repeated.
+
+**Repeat** expands the selected rows into the existing flat `fields` array; it does not introduce a new JSON field type. The count is the total number of records including the original. Name modes can keep names, append `_1` / `_01`, or increment an existing numeric suffix. Enable Offset recalculation when the expanded result should use consecutive expected offsets.
+
+**Generate test values** applies only to selected, unlocked fixed-length `string` fields. It uses each field's effective Encoding and Size in bytes. Available modes include ASCII/full-width maximum, preserving the current prefix, custom fill, alphabet/digit repetition, empty, one byte short, and intentional one-byte overflow. When full-width characters cannot fill the exact byte count, choose whether to finish with ASCII, remain short, or skip that field.
+
 ### Offset
 
 The Offset input is the **expected offset** written in a specification. It validates the layout; it does not place a field at an arbitrary position.
@@ -288,7 +296,7 @@ Field-specific problems appear directly below the affected row. Template-wide is
 ## 15. Current limits
 
 - The test scope targets current stable Google Chrome and Microsoft Edge.
-- CRC, checksum, repeat structures, variable-length structures, bit fields, floating-point fields, and conditional fields are not supported.
+- CRC, checksum, JSON repeat structures, variable-length structures, bit fields, floating-point fields, and conditional fields are not supported. Selected rows can still be expanded into flat fields from the GUI.
 - Existing BIN files cannot be parsed back into templates.
 - Hex preview is limited to the first 8 KiB and text copy to 64 KiB.
 - JSON input is limited to 5 MiB, fields to 5,000, one variable-size field to 16 MiB, and generated BIN to 64 MiB.
