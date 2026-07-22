@@ -895,6 +895,137 @@ h2 {
   width: 560px;
 }
 
+.comparison-dialog {
+  width: 980px;
+}
+
+.comparison-content {
+  display: grid;
+  gap: 12px;
+  max-height: 620px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.comparison-status {
+  align-items: center;
+  display: flex;
+  font-weight: 750;
+  gap: 6px;
+}
+
+.comparison-status.success {
+  color: var(--success);
+}
+
+.comparison-status.error {
+  color: var(--error);
+}
+
+.comparison-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+}
+
+.comparison-summary > div,
+.hash-list > div {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+}
+
+.comparison-summary span,
+.hash-list span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.comparison-summary strong {
+  font-size: 13px;
+}
+
+.hash-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hash-list code {
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.difference-wrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.difference-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.difference-table th,
+.difference-table td {
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  padding: 8px;
+  text-align: left;
+}
+
+.difference-table th {
+  background: var(--bg-subtle);
+  color: var(--muted-strong);
+  position: sticky;
+  top: 0;
+}
+
+.difference-table tr.important td {
+  background: var(--warning-soft);
+}
+
+.difference-kind {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 750;
+  margin-left: 6px;
+  padding: 2px 6px;
+}
+
+.difference-kind.fixed,
+.difference-kind.reserved {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.difference-notice {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 8px;
+}
+
+.busy-overlay {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 750;
+  left: 50%;
+  padding: 12px 16px;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 55;
+}
+
 .reset-options {
   display: grid;
   gap: 10px;
@@ -1015,6 +1146,10 @@ h2 {
 
   .copy-row {
     grid-template-columns: 1fr;
+  }
+
+  .comparison-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .modal-dialog {
