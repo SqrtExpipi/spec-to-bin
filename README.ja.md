@@ -114,7 +114,7 @@ npm run test:run
 
 ## サンプル
 
-初期画面は空のテンプレートで開きます。リセットメニューから一般的なフィールド型のサンプルを読み込めます。公開している個別サンプルは [`examples`](./examples) にあります。
+初期画面は空のテンプレートで開きます。初期画面の「サンプルを開く」から一般的なフィールド型のサンプルを読み込めます。公開している個別サンプルは [`examples`](./examples) にあります。
 
 ## 安全上の上限
 
@@ -133,5 +133,7 @@ npm run test:run
 - [User guide（英語）](./docs/user-guide.md)
 - [Template format](./docs/template-format.md)
 - [JSON Schema](./docs/binary-template.schema.json)
+- [変更履歴](./CHANGELOG.md)
+- [リリースチェックリスト](./docs/release-checklist.md)
 - [AI prompt example（日本語）](./prompts/spec-to-bin-json.ja.md)
 - [AI prompt example（英語）](./prompts/spec-to-bin-json.md)
