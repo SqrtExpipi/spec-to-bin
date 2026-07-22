@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = resolve(projectRoot, "dist-offline");
 const indexPath = resolve(outputDir, "index.html");
+const offlineHtmlPath = resolve(outputDir, "Spec-to-BIN-Offline.html");
 const readmePath = resolve(outputDir, "README.txt");
+const licensePath = resolve(outputDir, "LICENSE.txt");
 let html = await readFile(indexPath, "utf8");
 
 const scriptMatch = html.match(/<script type="module"[^>]*src="([^"]+)"[^>]*><\/script>/);
@@ -31,16 +33,18 @@ html = html
   .replace(/\s*<link rel="manifest"[^>]*>/g, "")
   .replace(/\s*<link rel="icon"[^>]*>/g, "");
 
-await writeFile(indexPath, html, "utf8");
+await writeFile(offlineHtmlPath, html, "utf8");
 await writeFile(
   readmePath,
   [
     "Spec to BIN Offline",
     "",
-    "Open index.html directly in a modern browser. No server or network connection is required.",
-    "index.html をモダンブラウザで直接開いてください。サーバーやネットワーク接続は不要です。",
+    "Open Spec-to-BIN-Offline.html directly in a modern browser. No server or network connection is required.",
+    "Spec-to-BIN-Offline.html をモダンブラウザで直接開いてください。サーバーやネットワーク接続は不要です。",
     ""
   ].join("\n"),
   "utf8"
 );
+await writeFile(licensePath, await readFile(resolve(projectRoot, "LICENSE"), "utf8"), "utf8");
+await rm(indexPath, { force: true });
 await rm(resolve(outputDir, "assets"), { recursive: true, force: true });

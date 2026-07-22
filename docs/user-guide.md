@@ -19,7 +19,7 @@ Sending a specification to an external AI or posting JSON in a GitHub Issue happ
 | Distribution | Use case | How to open it |
 | --- | --- | --- |
 | Web/PWA | Normal use and immediate access to the latest version | Open the public URL in Chrome or Edge |
-| Offline ZIP | Restricted networks and local archival | Download a ZIP from [Releases](https://github.com/SqrtExpipi/spec-to-bin/releases), extract it, and open `index.html` |
+| Offline ZIP | Restricted networks and local archival | Download a ZIP from [Releases](https://github.com/SqrtExpipi/spec-to-bin/releases), extract it, and open `Spec-to-BIN-Offline.html` |
 
 The regular web build is not intended to be opened directly with `file://`. Use the self-contained offline ZIP from a Release for that workflow.
 

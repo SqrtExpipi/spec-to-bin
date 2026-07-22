@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spec to BIN - Generate Reproducible Test Binary Files Offline</title>
+    <meta name="description" content="Generate communication packets, embedded configuration data, EEPROM images, and fixed-layout test binaries from shared JSON definitions. Free, open source, local-first, PWA, and offline HTML." />
+    <link rel="stylesheet" href="./about.css" />
+    <link rel="canonical" href="https://sqrtexpipi.github.io/spec-to-bin/about.html" />
+    <link rel="alternate" hreflang="en" href="https://sqrtexpipi.github.io/spec-to-bin/about.html" />
+    <link rel="alternate" hreflang="ja" href="https://sqrtexpipi.github.io/spec-to-bin/about.ja.html" />
+    <link rel="alternate" hreflang="x-default" href="https://sqrtexpipi.github.io/spec-to-bin/about.html" />
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Language and product links">
+        <strong>Spec to BIN</strong>
+        <span>English</span>
+        <a href="./about.ja.html" lang="ja">日本語</a>
+        <a href="./">Open app</a>
+        <a href="https://github.com/SqrtExpipi/spec-to-bin">GitHub</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Generate reproducible test binary files from shared JSON definitions</h1>
+      <p class="lede">Spec to BIN is a free, open-source browser tool for creating fixed-layout binary data without manually calculating every offset and Hex value.</p>
+      <div class="actions">
+        <a href="./">Open the web/PWA app</a>
+        <a href="https://github.com/SqrtExpipi/spec-to-bin/releases/latest">Download the offline HTML release</a>
+        <a href="https://github.com/SqrtExpipi/spec-to-bin/blob/main/docs/user-guide.md">Read the user guide</a>
+      </div>
+
+      <h2>Designed for real test-data workflows</h2>
+      <ul>
+        <li>Communication packets for custom TCP/UDP protocols</li>
+        <li>Embedded configuration and initialization data</li>
+        <li>EEPROM images and fixed-layout device settings</li>
+        <li>Repeatable test fixtures shared by development and test teams</li>
+      </ul>
+
+      <h2>Share the definition, reproduce the same bytes</h2>
+      <p>Define fields, integer types, byte lengths, endian, encodings, padding, fixed values, and expected offsets in JSON. Store the definition in Git or another version-control system. The same JSON definition processed by the same Spec to BIN version generates the same binary output.</p>
+      <p>The GUI validates ranges, fixed-length strings, Shift_JIS and UTF-8 byte counts, IPv4 values, unresolved review markers, and expected offsets before BIN export.</p>
+
+      <h2>Local-first and available offline</h2>
+      <p>Templates, field values, and generated binaries are processed locally in the browser. The app does not upload them and has no telemetry. Install the web version as a PWA in Chrome or Edge, or download the self-contained HTML release for offline and restricted-network environments.</p>
+
+      <h2>Optional AI-assisted specification workflow</h2>
+      <p>An included prompt can help an external chat AI turn a binary specification into a draft JSON definition. Spec to BIN does not contain an AI API. A person reviews the draft, while deterministic validation and byte generation remain in the browser.</p>
+
+      <h2>Common questions</h2>
+      <dl>
+        <dt>Can I generate test BIN files without an internet connection?</dt>
+        <dd>Yes. Download the release ZIP and open the self-contained offline HTML file.</dd>
+        <dt>Can a team reproduce the same binary?</dt>
+        <dd>Yes. Share the JSON definition and use the same Spec to BIN version.</dd>
+        <dt>Are specifications or generated files uploaded?</dt>
+        <dd>No. Spec to BIN processes them in the browser. If you separately send a specification to an external AI, that service has its own data-handling policy.</dd>
+        <dt>Is this a Hex editor for reverse engineering?</dt>
+        <dd>No. It is focused on generating new binary data from a known structure.</dd>
+        <dt>Which formats are supported?</dt>
+        <dd>Integer types from 8 to 64 bits, raw bytes, fixed-length ASCII/UTF-8/Shift_JIS strings, IPv4, and padding are supported in v0.1.</dd>
+      </dl>
+    </main>
+    <footer>Spec to BIN is open-source software released under the MIT License.</footer>
+  </body>
+</html>

@@ -1,12 +1,20 @@
 # Spec to BIN
 
+[English](./README.md) | [日本語](./README.ja.md)
+
 仕様書から、テスト用バイナリファイルを作る。
 
-Spec to BIN は、通信電文、組込み設定データ、EEPROMデータ、初期設定BIN、テストペイロードを、構造化されたJSONテンプレートから作成するためのブラウザアプリです。
+Spec to BINは、共有可能なJSON定義から固定長のテスト用バイナリファイルを生成する、無料のオープンソース・ブラウザアプリです。通信電文、組込み設定データ、EEPROMデータ、初期設定BIN、テストデータの作成を想定しています。
+
+JSON定義をGitなどでチーム共有し、同じSpec to BINバージョンと同じ定義から同じBINを再現できます。JSON、入力値、生成BINはブラウザ内で処理し、アプリから外部へアップロードしません。Web版、PWA、単一HTMLのオフライン版を利用できます。
 
 一般的なHex Editorではありません。バイナリ構造を定義し、GUIで値を確認・編集し、エラーを検証し、Hexをプレビューして、最終的に `.bin` を保存することを目的にしています。
 
-**[Spec to BINを開く](https://sqrtexpipi.github.io/spec-to-bin/)**
+- **[Web/PWA版を開く](https://sqrtexpipi.github.io/spec-to-bin/)**
+- **[オフライン版を取得する](https://github.com/SqrtExpipi/spec-to-bin/releases/latest)**
+- **[利用ガイドを読む](./docs/user-guide.ja.md)**
+
+同梱プロンプトを任意の外部チャットAIへ渡し、仕様書からJSON定義のたたき台を作ることもできます。Spec to BIN自体はAI APIを呼び出しません。人間が定義を確認し、アプリがブラウザ内で検証して決定的にbyte列を生成します。
 
 ![ライトテーマのフィールド編集とHexプレビュー](./docs/images/ja-light.png)
 
