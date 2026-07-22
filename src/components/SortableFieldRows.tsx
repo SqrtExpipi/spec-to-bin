@@ -85,29 +85,32 @@ export function SortableFieldRows({
       style={style}
     >
       <tr
-        className={[selected ? "selected" : "", batchSelected ? "batch-selected" : ""].filter(Boolean).join(" ")}
+        className={[selected ? "active-row" : "", batchSelected ? "batch-selected" : ""].filter(Boolean).join(" ")}
         onClick={() => setSelectedFieldIndex(layout.index)}
+        onFocusCapture={() => setSelectedFieldIndex(layout.index)}
       >
         <td className="drag-cell">
-          <input
-            type="checkbox"
-            aria-label={t("batch.selectRow", { name: layout.field.name })}
-            checked={batchSelected}
-            onChange={() => toggleBatchSelection(id)}
-            onClick={(event) => event.stopPropagation()}
-          />
-          <button
-            type="button"
-            className="drag-handle"
-            title={t("row.drag")}
-            aria-label={t("row.drag")}
-            ref={setActivatorNodeRef}
-            onClick={(event) => event.stopPropagation()}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical size={15} />
-          </button>
+          <div className="row-leading-controls">
+            <input
+              type="checkbox"
+              aria-label={t("batch.selectRow", { name: layout.field.name })}
+              checked={batchSelected}
+              onChange={() => toggleBatchSelection(id)}
+              onClick={(event) => event.stopPropagation()}
+            />
+            <button
+              type="button"
+              className="drag-handle"
+              title={t("row.drag")}
+              aria-label={t("row.drag")}
+              ref={setActivatorNodeRef}
+              onClick={(event) => event.stopPropagation()}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical size={15} />
+            </button>
+          </div>
         </td>
         <td>
           <IntegerFieldInput

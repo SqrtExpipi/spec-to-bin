@@ -6,12 +6,9 @@ export type TestValueMode =
   | "fullWidthMax"
   | "keepAndFill"
   | "customFill"
-  | "alphabet"
   | "digits"
-  | "hyphen"
   | "empty"
-  | "leaveOneByte"
-  | "overflowOneByte";
+  | "leaveOneByte";
 export type FullWidthRemainder = "ascii" | "short" | "error";
 
 export interface RepeatFieldsOptions {
@@ -86,10 +83,6 @@ export function generateFixedStringValue(
   if (options.mode === "empty") {
     return "";
   }
-  if (options.mode === "overflowOneByte") {
-    return "A".repeat(length + 1);
-  }
-
   const target = options.mode === "leaveOneByte" ? Math.max(0, length - 1) : length;
   const current = String(field.value ?? "");
   const pattern = getTestPattern(options);
@@ -145,13 +138,10 @@ function getTestPattern(options: TestValueOptions): string {
       return "あ";
     case "customFill":
     case "keepAndFill":
-      return options.customFill ?? "-";
+      return options.customFill ?? "A";
     case "digits":
       return "0123456789";
-    case "hyphen":
-      return "-";
     case "asciiMax":
-    case "alphabet":
     case "leaveOneByte":
       return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     default:

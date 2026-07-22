@@ -43,12 +43,14 @@ Errors block preview, copy, and BIN export to prevent an invalid file from being
 | Action | Description |
 | --- | --- |
 | Save BIN file | Saves the validated byte sequence as `.bin`. |
+| Test package ZIP | Saves the template, generated BIN, hashes, and generation metadata together. |
 | Open JSON file | Loads a template and replaces the current table. Unsaved changes require confirmation. |
-| Edit JSON | Opens the JSON exchange area. Select **Apply JSON** after editing. |
+| Edit JSON | Opens the JSON editor directly below the toolbar. Select **Apply JSON** after editing. |
 | Save JSON file | Saves the current template and values. This is separate from BIN export. |
 | Copy AI prompt | Copies instructions matching the current template contract. |
 | Undo / Redo | Reverts or reapplies recent template edits. |
-| Reset | Replaces the current template with a blank template or a general field-type sample. |
+| Restore saved | Restores the last definition opened from or saved to JSON. This restoration can be undone. |
+| New template | Replaces the current definition with a clean blank template. |
 
 ### Hex preview
 
@@ -89,11 +91,13 @@ Adding, duplicating, deleting, or reordering a row changes the calculated offset
 
 ### Multiple-row operations
 
-Use the checkbox at the left of each row to show the selection toolbar. Selected rows can be duplicated, copied and pasted inside the editor, moved, deleted, or treated as one record and repeated.
+Clicking a row makes it the **active row**, used for Hex highlighting and as the paste destination. The checkbox at the left independently adds the row to the **batch selection**. The selection toolbar remains visible while rows exist and stays near the top while the page scrolls.
+
+Selected rows can be duplicated, copied to the editor clipboard, moved, deleted, or treated as one record and repeated. **Paste** inserts the clipboard rows below the active row. After a batch deletion, the notification offers an immediate Undo action.
 
 **Repeat** expands the selected rows into the existing flat `fields` array; it does not introduce a new JSON field type. The count is the total number of records including the original. Name modes can keep names, append `_1` / `_01`, or increment an existing numeric suffix. Enable Offset recalculation when the expanded result should use consecutive expected offsets.
 
-**Generate test values** applies only to selected, unlocked fixed-length `string` fields. It uses each field's effective Encoding and Size in bytes. Available modes include ASCII/full-width maximum, preserving the current prefix, custom fill, alphabet/digit repetition, empty, one byte short, and intentional one-byte overflow. When full-width characters cannot fill the exact byte count, choose whether to finish with ASCII, remain short, or skip that field.
+**Generate test values** applies only to selected, unlocked fixed-length `string` fields. It uses each field's effective Encoding and Size in bytes. Available modes include repeating A-Z to the maximum, full-width maximum, preserving the current prefix, custom fill, digit repetition, empty, and one byte short. The dialog shows target and excluded counts plus the reason each row is excluded. When full-width characters cannot fill the exact byte count, choose whether to finish with ASCII, remain short, or skip that field.
 
 ### Offset
 
@@ -241,7 +245,7 @@ A minimal useful template looks like this:
 }
 ```
 
-In Edit JSON, pasted changes do not reach the table until you select **Apply JSON**. Correct syntax and definition errors before applying.
+In Edit JSON, pasted changes do not reach the table until you select **Apply JSON**. The editor remains directly below the main toolbar while open. JSON syntax errors stay visible and include a line and column when the browser provides a parse position. Save JSON is disabled until an edited draft has been applied.
 
 Unknown properties are preserved where possible, but preservation does not mean Spec to BIN implements their behavior. Review the warnings.
 

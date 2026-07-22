@@ -5,7 +5,6 @@ export type CopyFormatId = "hex-list" | "c-array" | "csharp-byte-array" | "pytho
 export interface CopyFormat {
   id: CopyFormatId;
   label: string;
-  language?: string;
   value: string;
 }
 
@@ -26,19 +25,16 @@ export function createCopyFormats(bytes: Uint8Array, variableName = "data"): Cop
     {
       id: "c-array",
       label: "C array",
-      language: "c",
       value: `uint8_t ${variableName}[] = { ${list} };`
     },
     {
       id: "python-bytes",
       label: "Python bytes",
-      language: "python",
       value: `${variableName} = bytes([${list}])`
     },
     {
       id: "csharp-byte-array",
       label: "C# byte[]",
-      language: "csharp",
       value: `byte[] ${variableName} = { ${list} };`
     }
   ];

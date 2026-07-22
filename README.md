@@ -45,9 +45,10 @@ An optional external chat AI can turn a specification into a draft JSON definiti
 - Load and save JSON binary templates
 - Edit names, types, sizes, formats, values, notes, and expected offsets in a table
 - Reorder, add, duplicate, and delete fields
-- Select multiple rows to copy, paste, move, delete, or expand a record block with numbered names
-- Generate fixed-length string test values by encoded byte length, including exact maximum and intentional overflow cases
-- Undo and redo edits, with unsaved-change warnings
+- Select multiple rows to copy, duplicate, move, delete, or expand a record block with numbered names
+- Copy selected rows to the internal clipboard and paste them below the active row
+- Generate valid fixed-length string test values by encoded byte length, including exact maximum and one-byte-short cases
+- Undo and redo edits, restore the last opened or saved definition, and start a clean template
 - Show offsets and byte sizes
 - Show field validation directly below the affected row
 - Validate expected offsets against calculated offsets
@@ -121,7 +122,7 @@ npm run test:run
 
 ## Sample JSON
 
-The editor starts with a blank template. Load a general-purpose sample from the reset menu, or use a JSON template such as:
+The editor starts with a blank template. Load the general-purpose sample from the empty state, or use a JSON template such as:
 
 ```json
 {

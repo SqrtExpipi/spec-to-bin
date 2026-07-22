@@ -68,15 +68,9 @@ describe("generateFixedStringValue", () => {
 
   it("keeps the current value and fills only the remainder", () => {
     const field: FieldDefinition = { name: "text", type: "string", length: 8, value: "ID" };
-    expect(generateFixedStringValue(field, template, { mode: "keepAndFill", customFill: "-" })).toBe(
-      "ID------"
+    expect(generateFixedStringValue(field, template, { mode: "keepAndFill", customFill: "A" })).toBe(
+      "IDAAAAAA"
     );
-  });
-
-  it("can deliberately create a one-byte overflow", () => {
-    const field: FieldDefinition = { name: "text", type: "string", length: 4 };
-    const generated = generateFixedStringValue(field, template, { mode: "overflowOneByte" });
-    expect(encodeString(generated, "shift_jis")).toHaveLength(5);
   });
 
   it("rejects a full-width remainder when exact filling is required", () => {
