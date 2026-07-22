@@ -73,7 +73,17 @@ const en = {
   "toast.templateReset": "Template reset.",
   "error.binBlocked": "Fix validation errors before saving BIN.",
   "error.jsonTooLarge": "JSON is too large. Maximum size is {max}.",
+  "error.jsonFileType": "Drop a .json file.",
+  "error.jsonSingleFile": "Drop one JSON file at a time.",
   "confirm.replaceUnsaved": "Discard unsaved changes and open another JSON file?",
+  "confirm.discardUnsaved": "Discard unsaved changes?",
+
+  "drop.title": "Drop JSON to open",
+  "drop.hint": "The file is processed only in this browser.",
+  "onboarding.title": "How do you want to start?",
+  "onboarding.hint": "Open or drop a JSON definition, ask AI for a draft, or add fields manually.",
+  "onboarding.sample": "Load sample",
+  "onboarding.blank": "Start blank",
 
   "details.clearReview": "Mark reviewed",
 
@@ -249,7 +259,17 @@ const ja: Record<MessageKey, string> = {
   "toast.templateReset": "テンプレートをリセットしました。",
   "error.binBlocked": "BIN保存前にエラーを修正してください。",
   "error.jsonTooLarge": "JSONが大きすぎます。最大サイズは {max} です。",
+  "error.jsonFileType": ".jsonファイルをドロップしてください。",
+  "error.jsonSingleFile": "JSONファイルは1件ずつドロップしてください。",
   "confirm.replaceUnsaved": "未保存の変更を破棄して別のJSONを開きますか？",
+  "confirm.discardUnsaved": "未保存の変更を破棄しますか？",
+
+  "drop.title": "JSONをドロップして開く",
+  "drop.hint": "ファイルはこのブラウザ内だけで処理されます。",
+  "onboarding.title": "どの方法で始めますか？",
+  "onboarding.hint": "JSONを開くかドロップする、AIでたたき台を作る、または手動で項目を追加できます。",
+  "onboarding.sample": "サンプルを開く",
+  "onboarding.blank": "空から作成",
 
   "details.clearReview": "確認済みにする",
 
