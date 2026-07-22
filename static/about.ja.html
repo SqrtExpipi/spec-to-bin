@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spec to BIN - オフラインで再現可能なテスト用バイナリファイルを生成</title>
+    <meta name="description" content="共有JSON定義から、通信電文、組込み設定、EEPROM、固定長テストBINを生成する無料OSS。ブラウザ内処理、PWA、単一HTMLのオフライン版に対応。" />
+    <link rel="stylesheet" href="./about.css" />
+    <link rel="canonical" href="https://sqrtexpipi.github.io/spec-to-bin/about.ja.html" />
+    <link rel="alternate" hreflang="en" href="https://sqrtexpipi.github.io/spec-to-bin/about.html" />
+    <link rel="alternate" hreflang="ja" href="https://sqrtexpipi.github.io/spec-to-bin/about.ja.html" />
+    <link rel="alternate" hreflang="x-default" href="https://sqrtexpipi.github.io/spec-to-bin/about.html" />
+  </head>
+  <body>
+    <header>
+      <nav aria-label="言語と製品リンク">
+        <strong>Spec to BIN</strong>
+        <a href="./about.html" lang="en">English</a>
+        <span>日本語</span>
+        <a href="./">アプリを開く</a>
+        <a href="https://github.com/SqrtExpipi/spec-to-bin">GitHub</a>
+      </nav>
+    </header>
+    <main>
+      <h1>共有JSON定義から、再現可能なテスト用バイナリファイルを生成</h1>
+      <p class="lede">Spec to BINは、OffsetやHexをすべて手計算せず、固定長バイナリデータを作成するための無料オープンソース・ブラウザツールです。</p>
+      <div class="actions">
+        <a href="./">Web/PWA版を開く</a>
+        <a href="https://github.com/SqrtExpipi/spec-to-bin/releases/latest">オフラインHTML版を取得</a>
+        <a href="https://github.com/SqrtExpipi/spec-to-bin/blob/main/docs/user-guide.ja.md">利用ガイドを読む</a>
+      </div>
+
+      <h2>実務のテストデータ作成を想定</h2>
+      <ul>
+        <li>独自TCP/UDPプロトコルの通信電文</li>
+        <li>組込み機器の設定・初期設定データ</li>
+        <li>EEPROMイメージや固定長の装置設定</li>
+        <li>開発・テスト担当者が共有する再現可能なテストBIN</li>
+      </ul>
+
+      <h2>定義を共有し、同じbyte列を再現</h2>
+      <p>フィールド、整数型、byte長、Endian、文字コード、Padding、固定値、期待OffsetをJSONで定義します。JSONをGitなどで管理すれば、同じSpec to BINバージョンと同じ定義から同じBINを生成できます。</p>
+      <p>BIN保存前に、数値範囲、固定長文字列、Shift_JIS・UTF-8のbyte数、IPv4、未確認項目、期待OffsetをGUIで検証できます。</p>
+
+      <h2>ローカル処理とオフライン利用</h2>
+      <p>JSON、入力値、生成BINはブラウザ内で処理し、アプリからアップロードしません。テレメトリもありません。ChromeまたはEdgeからPWAとしてインストールできるほか、閉域・オフライン環境向けの単一HTML版も提供しています。</p>
+
+      <h2>外部AIで仕様書からJSONのたたき台を作成</h2>
+      <p>同梱プロンプトを任意の外部チャットAIへ渡し、バイナリ仕様書からJSON定義のたたき台を作成できます。Spec to BIN自体にAI APIはありません。人間が定義を確認し、検証とbyte列生成はブラウザ内で決定的に実行します。</p>
+
+      <h2>よくある質問</h2>
+      <dl>
+        <dt>インターネットに接続せずテスト用BINを作れますか？</dt>
+        <dd>はい。ReleaseのZIPを展開し、自己完結型のHTMLファイルを開いて利用できます。</dd>
+        <dt>チームで同じBINを再現できますか？</dt>
+        <dd>はい。同じJSON定義を共有し、同じSpec to BINバージョンを使用してください。</dd>
+        <dt>仕様書や生成ファイルはアップロードされますか？</dt>
+        <dd>Spec to BINからはアップロードしません。別途、仕様書を外部AIへ渡す場合は、そのサービスのデータ取扱方針を確認してください。</dd>
+        <dt>既存BINを解析するHex Editorですか？</dt>
+        <dd>いいえ。既知の構造定義から新しいバイナリデータを生成する用途に特化しています。</dd>
+        <dt>どの型と文字コードに対応していますか？</dt>
+        <dd>v0.1では8～64bit整数、bytes、ASCII・UTF-8・Shift_JIS固定長文字列、IPv4、paddingに対応しています。</dd>
+      </dl>
+    </main>
+    <footer>Spec to BINはMIT Licenseで公開しているオープンソースソフトウェアです。</footer>
+  </body>
+</html>
